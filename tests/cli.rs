@@ -1,0 +1,24 @@
+use std::process::Command;
+
+#[test]
+fn binary_can_render_markdown_for_fixture() {
+    let binary = env!("CARGO_BIN_EXE_cargo-feature-lens");
+    let output = Command::new(binary)
+        .args([
+            "--manifest-path",
+            "tests/fixtures/basic",
+            "--crate",
+            "feature-lens-fixture",
+        ])
+        .output()
+        .expect("failed to run cargo-feature-lens");
+
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("Feature Footprint Report"));
+    assert!(stdout.contains("feature-lens-fixture"));
+}

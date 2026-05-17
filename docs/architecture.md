@@ -1,7 +1,5 @@
 # Architecture
 
-This root-level overview mirrors `docs/architecture.md` so existing links continue to work.
-
 `cargo-feature-lens` is split into a small CLI binary and reusable library modules. The core flow is:
 
 1. Parse CLI options in `src/main.rs`.

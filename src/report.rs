@@ -5,6 +5,7 @@ use crate::resolver::{FeatureGraph, FeatureNode};
 pub enum OutputFormat {
     Terminal,
     Markdown,
+    Json,
 }
 
 #[derive(Debug, Clone)]
@@ -29,6 +30,11 @@ pub fn render(
             options.crate_filter.as_deref(),
         )),
         OutputFormat::Markdown => Ok(render_markdown(
+            graph,
+            &findings,
+            options.crate_filter.as_deref(),
+        )),
+        OutputFormat::Json => Ok(render_json(
             graph,
             &findings,
             options.crate_filter.as_deref(),
@@ -147,6 +153,100 @@ fn render_markdown(
     output
 }
 
+fn render_json(graph: &FeatureGraph, findings: &[&Finding], crate_filter: Option<&str>) -> String {
+    let visible_nodes = visible_nodes(graph, crate_filter);
+    let total_features: usize = visible_nodes
+        .iter()
+        .map(|node| node.active_features.len())
+        .sum();
+    let mut output = String::new();
+
+    output.push_str("{\n");
+    output.push_str(&format!("  \"crate_count\": {},\n", visible_nodes.len()));
+    output.push_str(&format!("  \"total_active_features\": {total_features},\n"));
+    output.push_str("  \"crates\": [\n");
+
+    for (index, node) in visible_nodes.iter().enumerate() {
+        if index > 0 {
+            output.push_str(",\n");
+        }
+        output.push_str("    {\n");
+        output.push_str(&format!(
+            "      \"name\": \"{}\",\n",
+            json_escape(&node.name)
+        ));
+        output.push_str(&format!(
+            "      \"version\": \"{}\",\n",
+            json_escape(&node.version)
+        ));
+        output.push_str(&format!(
+            "      \"package_id\": \"{}\",\n",
+            json_escape(&node.package_id)
+        ));
+        output.push_str(&format!(
+            "      \"manifest_path\": \"{}\",\n",
+            json_escape(&node.manifest_path)
+        ));
+        output.push_str("      \"active_features\": [");
+        for (feature_index, feature) in node.active_features.iter().enumerate() {
+            if feature_index > 0 {
+                output.push_str(", ");
+            }
+            output.push_str(&format!("\"{}\"", json_escape(feature)));
+        }
+        output.push_str("],\n");
+        output.push_str("      \"findings\": [");
+        let node_findings = findings
+            .iter()
+            .filter(|finding| finding.crate_name == node.name)
+            .collect::<Vec<_>>();
+        for (finding_index, finding) in node_findings.iter().enumerate() {
+            if finding_index > 0 {
+                output.push_str(",");
+            }
+            output.push_str("\n        {");
+            output.push_str(&format!("\n          \"kind\": \"{:?}\",", finding.kind));
+            output.push_str(&format!(
+                "\n          \"severity\": \"{:?}\",",
+                finding.severity
+            ));
+            output.push_str("\n          \"feature\": ");
+            if let Some(feature) = &finding.feature {
+                output.push_str(&format!("\"{}\"", json_escape(feature)));
+            } else {
+                output.push_str("null");
+            }
+            output.push_str(&format!(
+                ",\n          \"message\": \"{}\"\n        }}",
+                json_escape(&finding.message)
+            ));
+        }
+        if !node_findings.is_empty() {
+            output.push_str("\n      ");
+        }
+        output.push_str("]\n    }");
+    }
+
+    output.push_str("\n  ]\n}\n");
+    output
+}
+
+fn json_escape(value: &str) -> String {
+    let mut escaped = String::new();
+    for ch in value.chars() {
+        match ch {
+            '\\' => escaped.push_str("\\\\"),
+            '"' => escaped.push_str("\\\""),
+            '\n' => escaped.push_str("\\n"),
+            '\r' => escaped.push_str("\\r"),
+            '\t' => escaped.push_str("\\t"),
+            ch if ch.is_control() => escaped.push_str(&format!("\\u{:04x}", ch as u32)),
+            ch => escaped.push(ch),
+        }
+    }
+    escaped
+}
+
 fn visible_nodes<'a>(graph: &'a FeatureGraph, crate_filter: Option<&str>) -> Vec<&'a FeatureNode> {
     graph
         .sorted_nodes()
@@ -165,6 +265,35 @@ mod tests {
     use super::*;
     use crate::analysis::{Finding, Severity};
     use crate::resolver::FeatureNode;
+
+    #[test]
+    fn renders_json_report() {
+        let mut graph = FeatureGraph::default();
+        graph.nodes.insert(
+            "demo 0.1.0".to_string(),
+            FeatureNode {
+                package_id: "demo 0.1.0".to_string(),
+                name: "demo".to_string(),
+                version: "0.1.0".to_string(),
+                active_features: BTreeSet::from(["default".to_string()]),
+                ..FeatureNode::default()
+            },
+        );
+        let rendered = render(
+            &graph,
+            &[],
+            &ReportOptions {
+                format: OutputFormat::Json,
+                only_unused: false,
+                only_bloat: false,
+                crate_filter: None,
+            },
+        )
+        .unwrap();
+
+        assert!(rendered.contains("\"crate_count\": 1"));
+        assert!(rendered.contains("\"name\": \"demo\""));
+    }
 
     #[test]
     fn renders_markdown_report() {

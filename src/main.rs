@@ -15,6 +15,7 @@ struct Cli {
     bloat: bool,
     crate_filter: Option<String>,
     manifest_path: PathBuf,
+    format: Option<OutputFormat>,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -32,11 +33,13 @@ fn run(cli: Cli) -> Result<(), Box<dyn std::error::Error>> {
     let context = AnalysisContext::new(&graph, &suggestions);
     let findings = analysis::run_all(&context);
 
-    let format = if cli.output.is_some() {
-        OutputFormat::Markdown
-    } else {
-        OutputFormat::Terminal
-    };
+    let format = cli.format.unwrap_or_else(|| {
+        if cli.output.is_some() {
+            OutputFormat::Markdown
+        } else {
+            OutputFormat::Terminal
+        }
+    });
     let options = ReportOptions {
         format,
         only_unused: cli.unused,
@@ -62,6 +65,7 @@ impl Cli {
             bloat: false,
             crate_filter: None,
             manifest_path: PathBuf::from("."),
+            format: None,
         };
         let mut iter = args.into_iter().skip(1);
         while let Some(arg) = iter.next() {
@@ -78,8 +82,19 @@ impl Cli {
                         cli.manifest_path = PathBuf::from(value);
                     }
                 }
+                "--format" => {
+                    let Some(value) = iter.next().and_then(|value| value.into_string().ok()) else {
+                        return Err("--format requires one of: terminal, markdown, json".into());
+                    };
+                    cli.format = Some(match value.as_str() {
+                        "terminal" => OutputFormat::Terminal,
+                        "markdown" => OutputFormat::Markdown,
+                        "json" => OutputFormat::Json,
+                        _ => return Err(format!("unsupported output format `{value}`").into()),
+                    });
+                }
                 "-h" | "--help" => {
-                    println!("Usage: cargo feature-lens [--output PATH] [--unused] [--bloat] [--crate TEXT] [--manifest-path PATH]");
+                    println!("Usage: cargo feature-lens [--output PATH] [--format terminal|markdown|json] [--unused] [--bloat] [--crate TEXT] [--manifest-path PATH]");
                     std::process::exit(0);
                 }
                 unknown => return Err(format!("unknown argument `{unknown}`").into()),
@@ -115,5 +130,6 @@ mod tests {
         assert!(cli.unused);
         assert_eq!(cli.crate_filter.as_deref(), Some("serde"));
         assert_eq!(cli.manifest_path, PathBuf::from("."));
+        assert_eq!(cli.format, None);
     }
 }

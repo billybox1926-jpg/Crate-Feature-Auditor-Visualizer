@@ -52,7 +52,7 @@ This is the working task list for `cargo-feature-lens`. Items are roughly ordere
 
 - [ ] **Markdown/JSON output**
   - [ ] Generate detailed per‑crate sections in Markdown with actionable advice.
-  - [ ] Provide machine‑readable JSON output (`--format json`).
+  - [x] Provide machine‑readable JSON output (`--format json`).
   - [ ] Support structured output for CI (e.g., GitHub Actions annotations, GitLab Code Quality report).
 
 - [ ] **Colour & accessibility**
@@ -96,12 +96,12 @@ This is the working task list for `cargo-feature-lens`. Items are roughly ordere
 ## Documentation & Community
 
 - [ ] **User guide**
-  - [ ] Write a `docs/guide.md` explaining how to interpret reports and fix common issues.
-  - [ ] Add example workflows (trimming a single crate’s features, auditing a whole workspace).
+  - [x] Write a `docs/guide.md` explaining how to interpret reports and fix common issues.
+  - [x] Add example workflows (trimming a single crate’s features, auditing a whole workspace).
 
 - [ ] **Contribution guide**
-  - [ ] Document the architecture for new contributors (`docs/architecture.md`).
-  - [ ] Add a `CONTRIBUTING.md` with code style, PR checklist, and how to add new analysis passes.
+  - [x] Document the architecture for new contributors (`docs/architecture.md`).
+  - [x] Add a `CONTRIBUTING.md` with code style, PR checklist, and how to add new analysis passes.
 
 - [ ] **Website / demo**
   - [ ] Create a landing page showing a live terminal recording.

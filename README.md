@@ -38,7 +38,7 @@ Developers are left with trial‑and‑error compilation, oversized binaries, an
 
 - **Compile‑time bloat analysis** -- flags optional features that are pulling in heavy dependencies you might not want.
 
-- **Human‑readable output** -- terminal (rich) or Markdown report, ready to be pasted into issues or docs.
+- **Human‑ and machine‑readable output** -- terminal, Markdown, or JSON reports for issues, docs, scripts, and dashboards.
 
 All without building your project -- purely static analysis.
 
@@ -62,13 +62,19 @@ Inside any Cargo workspace, run:
 
 ```bash
 
-# Default -- terminal report with colours
+# Default -- terminal report
 
 cargo feature-lens
 
 # Export a Markdown report
 
 cargo feature-lens --output report.md
+
+# Select an explicit output format
+
+cargo feature-lens --format terminal
+cargo feature-lens --format markdown --output report.md
+cargo feature-lens --format json --output report.json
 
 # Show only unused features
 
@@ -164,6 +170,12 @@ When using `--output report.md`, you get a ready‑to‑share document:
 
 5\. **Generate the report** with clear severities and actionable recommendations.
 
+## 📘 Documentation
+
+- [User guide](docs/guide.md) -- report interpretation, feature-trimming workflows, and JSON usage.
+- [Architecture notes](docs/architecture.md) -- module-level overview for contributors.
+- [Contributing guide](CONTRIBUTING.md) -- setup, style, testing, and PR checklist.
+
 ---
 
 ## 📈 Why Teams Love It
@@ -185,8 +197,6 @@ It's an easy win for performance, CI budgets, and developer happiness.
 - Integration with `cargo-deny` to reject known‑bloated features in CI.
 
 - `#[cfg]`‑aware analysis (parse source to confirm feature usage).
-
-- JSON output for scripting and dashboards.
 
 - Interactive TUI mode.
 

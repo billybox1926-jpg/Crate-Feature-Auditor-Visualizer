@@ -4,19 +4,27 @@
 
 **Crate Feature Auditor & Visualizer**
 
-`cargo-feature-lens` is a Cargo subcommand that statically analyzes a Rust package or workspace dependency graph and reports which crate features are active, where duplicate feature activation may be happening, and which configured conflict or bloat rules match the current graph.
+`cargo-feature-lens` is a Cargo subcommand for auditing Cargo feature usage. It builds a resolved dependency and feature graph, reports feature-related findings, and can export graph views for review or documentation.
 
-The tool uses `cargo metadata` and manifest parsing. It does not compile the target project.
+The tool uses `cargo metadata`, manifest parsing, configured rules, and conservative Rust source scanning. It does not compile the target project.
 
-## Current capabilities
+## What it reports
 
-- Build a feature graph from Cargo metadata and parsed `Cargo.toml` files while preserving Cargo's resolved active feature set.
-- Track active features, optional dependencies, dependency feature requests, direct dependencies, and feature source paths.
-- Report unused, duplicate, conflict, bloat, and default-feature opt-out findings.
-- Render reports as terminal text, Markdown, or enriched JSON.
-- Filter reports by crate-name substring, unused findings, bloat findings, or minimum severity.
-- Use `--check` with `--fail-on` thresholds to fail CI when findings meet a chosen severity.
-- Analyze a crate from crates.io with `--remote --crate NAME` without creating a local project manually.
+- Active crate features and where feature activation comes from.
+- Unused feature candidates, including source-aware checks for simple `#[cfg(feature = "...")]` and `cfg!(feature = "...")` usage.
+- Duplicate feature activation across dependency paths.
+- Conflict, bloat, and default-feature opt-out findings from built-in and local rules.
+- CI-friendly pass/fail results through `--check` and severity thresholds.
+
+## Output formats
+
+Reports can be rendered as:
+
+- Terminal text
+- Markdown
+- JSON
+- Graphviz DOT
+- Mermaid
 
 ## Installation from source
 
@@ -30,27 +38,34 @@ Requires Rust 1.70 or newer.
 
 ## Quick start
 
-Inside a Cargo package or workspace, run:
+Analyze the current Cargo package or workspace:
 
 ```bash
 cargo feature-lens
 ```
 
-Analyze an explicit manifest path:
+Analyze an explicit manifest:
 
 ```bash
 cargo feature-lens --manifest-path Cargo.toml
 cargo feature-lens --manifest-path path/to/workspace/Cargo.toml
 ```
 
-Write a Markdown or JSON report:
+Write a report:
 
 ```bash
 cargo feature-lens --format markdown --output report.md
 cargo feature-lens --format json --output report.json
 ```
 
-Focus the report:
+Export a graph:
+
+```bash
+cargo feature-lens --format dot --output graph.dot
+cargo feature-lens --format mermaid --output graph.md
+```
+
+Focus or gate results:
 
 ```bash
 cargo feature-lens --unused
@@ -60,13 +75,16 @@ cargo feature-lens --check --fail-on error
 cargo feature-lens --manifest-path Cargo.toml --crate serde
 ```
 
-`--crate` filters local Cargo metadata by default. To analyze a crate from crates.io, use `--remote --crate tokio`; add `--crate-version` to pin a version requirement.
+Analyze a crate from crates.io:
+
+```bash
+cargo feature-lens --remote --crate tokio
+cargo feature-lens --remote --crate serde --crate-version 1
+```
+
+For local project policy, add an optional `feature-lens.toml` file in the working directory. Local rules are additive with the built-in rule database in `docs/suggestions.json`.
 
 ## Documentation
-
-Start with the user guide, then use the supporting maintainer and project-planning docs as needed.
-
-Key documents:
 
 - [User guide](docs/guide.md)
 - [Architecture](docs/architecture.md)
@@ -78,7 +96,7 @@ Key documents:
 
 ## Development
 
-The CI workflow runs the same core checks expected before changes land on `main`:
+Run the same checks used by CI:
 
 ```bash
 cargo fmt --check
@@ -87,26 +105,19 @@ cargo test
 cargo build
 ```
 
-Run against the included fixture:
+Try the included fixtures:
 
 ```bash
 cargo run -- feature-lens --manifest-path tests/fixtures/basic/Cargo.toml
 cargo run -- --remote --crate serde --crate-version 1
 ```
 
-The `docs/suggestions.json` file is an optional rule database used by the conflict and bloat analysis passes.
-
 ## Repository workflow
 
-Small maintainer changes currently land directly on `main`. External contributions should still be scoped through issues and pull requests when practical.
+Keep changes small, deterministic, and issue-focused. The CLI layer should stay thin; reusable logic belongs in library modules with tests.
 
 Open work is tracked in GitHub Issues for this repository.
 
 ## License
 
-Licensed under either of:
-
-- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE))
-- MIT license ([LICENSE-MIT](LICENSE-MIT))
-
-at your option.
+Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE).

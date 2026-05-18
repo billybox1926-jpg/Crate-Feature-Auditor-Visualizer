@@ -126,8 +126,14 @@ fn record_dependency_sources(graph: &mut FeatureGraph, nodes: &[ResolveNode]) {
         let dependency_features = parent.dependency_features.clone();
 
         for (dependency_name, child_id) in &metadata_node.dependency_names {
+            let child_name = graph
+                .nodes
+                .get(child_id)
+                .map(|child| child.name.clone())
+                .unwrap_or_else(|| dependency_name.clone());
             let requested_features = dependency_features
                 .get(dependency_name)
+                .or_else(|| dependency_features.get(&child_name))
                 .cloned()
                 .unwrap_or_default();
             if requested_features.is_empty() {
@@ -143,12 +149,8 @@ fn record_dependency_sources(graph: &mut FeatureGraph, nodes: &[ResolveNode]) {
                         child,
                         &feature,
                         FeatureSource {
-                            requested_by: format!("{parent_name}/{dependency_name}"),
-                            path: vec![
-                                parent_name.clone(),
-                                dependency_name.clone(),
-                                feature.clone(),
-                            ],
+                            requested_by: format!("{parent_name}/{child_name}"),
+                            path: vec![parent_name.clone(), child_name.clone(), feature.clone()],
                         },
                     );
                 }

@@ -55,9 +55,9 @@ fn check_mode_fails_at_configured_threshold() {
     let output = Command::new(binary)
         .args([
             "--manifest-path",
-            "tests/fixtures/basic",
+            "tests/fixtures/duplicate-feature-multiparent",
             "--crate",
-            "feature-lens-fixture",
+            "fixture-leaf",
             "--check",
             "--fail-on",
             "warning",
@@ -67,7 +67,8 @@ fn check_mode_fails_at_configured_threshold() {
 
     assert!(!output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("Duplicate"));
+    assert!(stdout.contains("⚠ Duplicate"));
+    assert!(stdout.contains("feature `shared`"));
 }
 
 #[test]
@@ -91,6 +92,85 @@ fn check_mode_passes_when_threshold_is_higher_than_findings() {
         "stderr: {}",
         String::from_utf8_lossy(&output.stderr)
     );
+}
+
+#[test]
+fn terminal_report_includes_duplicate_feature_lineage() {
+    let binary = env!("CARGO_BIN_EXE_cargo-feature-lens");
+    let output = Command::new(binary)
+        .args([
+            "--manifest-path",
+            "tests/fixtures/duplicate-feature-multiparent",
+            "--crate",
+            "fixture-leaf",
+        ])
+        .output()
+        .expect("failed to run cargo-feature-lens");
+
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("┌─ fixture-leaf (0.1.0)"));
+    assert!(stdout.contains("⚠ Duplicate"));
+    assert!(stdout.contains(
+        "feature `shared` is requested through multiple lineages: mid-a -> fixture-leaf -> shared; mid-b -> fixture-leaf -> shared"
+    ));
+}
+
+#[test]
+fn markdown_report_includes_duplicate_feature_lineage() {
+    let binary = env!("CARGO_BIN_EXE_cargo-feature-lens");
+    let output = Command::new(binary)
+        .args([
+            "--manifest-path",
+            "tests/fixtures/duplicate-feature-multiparent",
+            "--format",
+            "markdown",
+            "--crate",
+            "fixture-leaf",
+        ])
+        .output()
+        .expect("failed to run cargo-feature-lens");
+
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("| fixture-leaf | 0.1.0 |"));
+    assert!(stdout.contains("⚠ Duplicate: feature `shared` is requested through multiple lineages: mid-a -> fixture-leaf -> shared; mid-b -> fixture-leaf -> shared"));
+}
+
+#[test]
+fn json_report_includes_duplicate_feature_lineage() {
+    let binary = env!("CARGO_BIN_EXE_cargo-feature-lens");
+    let output = Command::new(binary)
+        .args([
+            "--manifest-path",
+            "tests/fixtures/duplicate-feature-multiparent",
+            "--format",
+            "json",
+            "--crate",
+            "fixture-leaf",
+        ])
+        .output()
+        .expect("failed to run cargo-feature-lens");
+
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("\"name\": \"fixture-leaf\""));
+    assert!(stdout.contains("\"kind\": \"Duplicate\""));
+    assert!(stdout.contains("\"severity\": \"Warning\""));
+    assert!(stdout.contains("\"feature\": \"shared\""));
+    assert!(stdout.contains("feature `shared` is requested through multiple lineages: mid-a -> fixture-leaf -> shared; mid-b -> fixture-leaf -> shared"));
 }
 
 #[test]

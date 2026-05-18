@@ -29,7 +29,7 @@ This is the working task list for `cargo-feature-lens`. Items are roughly ordere
   - [ ] Add flag to ignore features used only in dev-dependencies.
 
 - [ ] **Conflict detection**
-  - [ ] Build a community‑contributed rules database (like `suggestions.json`) and load it automatically.
+  - [ ] Build a community‑contributed rules database (like `docs/suggestions.json`) and load it automatically.
   - [ ] Detect feature implication relationships by parsing crate docs or metadata.
   - [ ] Support custom rules via `feature-lens.toml`.
 
@@ -63,8 +63,8 @@ This is the working task list for `cargo-feature-lens`. Items are roughly ordere
 
 ## Integration & CI
 
-- [ ] **Pre‑commit / CI mode**
-  - [ ] Add `--check` flag that exits with non‑zero on unused or conflicting features (suitable for CI).
+- [x] **Pre‑commit / CI mode**
+  - [x] Add `--check` flag that exits with non‑zero on unused or conflicting features (suitable for CI).
   - [ ] Provide severity thresholds (e.g., `--deny warning` treats warnings as errors).
 
 - [ ] **cargo-deny integration**
@@ -89,7 +89,7 @@ This is the working task list for `cargo-feature-lens`. Items are roughly ordere
 - [ ] **Testing**
   - [ ] Add more integration tests with real‑world crates (e.g., `tokio`, `reqwest`).
   - [ ] Fuzz the resolver with randomly generated feature graphs.
-  - [ ] CI pipeline with `cargo test`, `cargo fmt`, `cargo clippy`, and example runs.
+  - [x] CI pipeline with `cargo test`, `cargo fmt`, `cargo clippy`, and example runs.
 
 ---
 

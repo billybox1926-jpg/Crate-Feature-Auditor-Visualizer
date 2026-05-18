@@ -5,6 +5,7 @@
 //! and delegates rendering to the report module.
 
 pub mod analysis;
+pub mod graph_export;
 pub mod manifest;
 pub mod metadata;
 pub mod report;

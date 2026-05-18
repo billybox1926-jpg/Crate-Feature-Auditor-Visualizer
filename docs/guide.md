@@ -21,7 +21,7 @@ The command uses `cargo metadata`, so it resolves the dependency graph without c
 
 ## Choosing output formats
 
-`cargo-feature-lens` supports three report formats:
+`cargo-feature-lens` supports terminal, Markdown, JSON, and graph export formats:
 
 ```bash
 # Human-readable terminal report.
@@ -32,9 +32,17 @@ cargo feature-lens --format markdown --output feature-report.md
 
 # Machine-readable report for scripts and dashboards.
 cargo feature-lens --format json --output feature-report.json
+
+# Graphviz DOT export for dependency graph visualization.
+cargo feature-lens --format dot --output graph.dot
+
+# Mermaid export for Markdown-friendly diagrams.
+cargo feature-lens --format mermaid --output graph.md
 ```
 
 When `--output` is supplied without `--format`, the tool writes Markdown for backwards compatibility. Without `--output`, it prints the terminal report.
+
+DOT and Mermaid exports reflect the resolved dependency and feature graph from `cargo metadata`. They include deterministic crate dependency edges from each resolved node to dependencies that are also visible in the filtered graph, with crate name, version, and active feature labels on nodes. DOT is intended for Graphviz tools such as `dot`; Mermaid is intended for Markdown renderers that support diagrams.
 
 ## Focusing an audit
 

@@ -265,19 +265,24 @@ impl Cli {
                 }
                 "--format" => {
                     let Some(value) = iter.next().and_then(|value| value.into_string().ok()) else {
-                        return Err("--format requires one of: terminal, markdown, json".into());
+                        return Err(
+                            "--format requires one of: terminal, markdown, json, dot, mermaid"
+                                .into(),
+                        );
                     };
 
                     cli.format = Some(match value.as_str() {
                         "terminal" => OutputFormat::Terminal,
                         "markdown" => OutputFormat::Markdown,
                         "json" => OutputFormat::Json,
+                        "dot" => OutputFormat::Dot,
+                        "mermaid" => OutputFormat::Mermaid,
                         _ => return Err(format!("unsupported output format `{value}`").into()),
                     });
                 }
                 "-h" | "--help" => {
                     println!(
-                        "Usage: cargo feature-lens [--output PATH] [--format terminal|markdown|json] [--check] [--fail-on info|warning|error] [--min-severity info|warning|error] [--unused] [--bloat] [--crate TEXT] [--remote] [--crate-version VERSION] [--manifest-path PATH]"
+                        "Usage: cargo feature-lens [--output PATH] [--format terminal|markdown|json|dot|mermaid] [--check] [--fail-on info|warning|error] [--min-severity info|warning|error] [--unused] [--bloat] [--crate TEXT] [--remote] [--crate-version VERSION] [--manifest-path PATH]"
                     );
                     std::process::exit(0);
                 }

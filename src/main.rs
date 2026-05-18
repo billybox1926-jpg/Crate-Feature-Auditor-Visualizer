@@ -38,7 +38,14 @@ fn run() -> Result<(), Box<dyn Error>> {
     let mut manifests = ManifestCache::default();
     let graph = resolver::resolve(&metadata, &mut manifests)?;
 
-    let suggestions_path = std::env::current_dir()?.join("suggestions.json");
+    let current_dir = std::env::current_dir()?;
+    let docs_suggestions_path = current_dir.join("docs").join("suggestions.json");
+    let root_suggestions_path = current_dir.join("suggestions.json");
+    let suggestions_path = if docs_suggestions_path.exists() {
+        docs_suggestions_path
+    } else {
+        root_suggestions_path
+    };
     let suggestions = analysis::Suggestions::load_optional(&suggestions_path)?;
     let context = AnalysisContext::new(&graph, &suggestions);
     let findings = analysis::run_all(&context);

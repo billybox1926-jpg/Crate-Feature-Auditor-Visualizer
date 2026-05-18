@@ -494,7 +494,7 @@ mod tests {
 
         assert!(!suggestions.conflicts.is_empty());
         assert!(!suggestions.bloat.is_empty());
-        assert_eq!(suggestions.default_features.len(), 2);
+        assert!(suggestions.default_features.len() >= 3);
         assert!(suggestions.default_features.iter().any(|rule| {
             rule.crate_name == "log"
                 && rule.severity == Severity::Info
@@ -504,6 +504,10 @@ mod tests {
             .default_features
             .iter()
             .any(|rule| rule.crate_name == "reqwest"));
+        assert!(suggestions
+            .default_features
+            .iter()
+            .any(|rule| rule.crate_name == "serde"));
     }
 
     #[test]

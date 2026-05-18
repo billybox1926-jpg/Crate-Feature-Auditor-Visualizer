@@ -67,7 +67,7 @@ fn check_mode_fails_at_configured_threshold() {
             "fixture-leaf",
             "--check",
             "--fail-on",
-            "warning",
+            "info",
         ])
         .output()
         .expect("failed to run cargo-feature-lens");
@@ -753,4 +753,99 @@ fn unreferenced_active_feature_still_reports_unused_in_cli_and_check_mode() {
     assert!(!check_output.status.success());
     let check_stdout = String::from_utf8_lossy(&check_output.stdout);
     assert!(check_stdout.contains("Unused"));
+}
+
+#[test]
+fn terminal_report_includes_serde_conflict_finding() {
+    let binary = env!("CARGO_BIN_EXE_cargo-feature-lens");
+    let output = Command::new(binary)
+        .args([
+            "--manifest-path",
+            "tests/fixtures/conflict-serde-redundant",
+            "--crate",
+            "serde",
+        ])
+        .output()
+        .expect("failed to run cargo-feature-lens");
+
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("⚠ Conflict"));
+    assert!(stdout.contains("'std' already implies 'alloc'"));
+}
+
+#[test]
+fn markdown_report_includes_tokio_full_bloat_finding() {
+    let binary = env!("CARGO_BIN_EXE_cargo-feature-lens");
+    let output = Command::new(binary)
+        .args([
+            "--manifest-path",
+            "tests/fixtures/bloat-tokio-full",
+            "--format",
+            "markdown",
+            "--crate",
+            "tokio",
+        ])
+        .output()
+        .expect("failed to run cargo-feature-lens");
+
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("| tokio |"));
+    assert!(stdout.contains("Bloat: Enables a broad async surface area"));
+}
+
+#[test]
+fn json_report_includes_serde_default_feature_suggestion() {
+    let binary = env!("CARGO_BIN_EXE_cargo-feature-lens");
+    let output = Command::new(binary)
+        .args([
+            "--manifest-path",
+            "tests/fixtures/default-serde-active",
+            "--format",
+            "json",
+            "--crate",
+            "serde",
+        ])
+        .output()
+        .expect("failed to run cargo-feature-lens");
+
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("\"kind\": \"DefaultFeature\""));
+    assert!(stdout.contains("\"feature\": \"default\""));
+    assert!(stdout.contains("Default features enable 'std'"));
+}
+
+#[test]
+fn check_mode_fails_on_new_rule_driven_warning_threshold() {
+    let binary = env!("CARGO_BIN_EXE_cargo-feature-lens");
+    let output = Command::new(binary)
+        .args([
+            "--manifest-path",
+            "tests/fixtures/bloat-tokio-full",
+            "--crate",
+            "tokio",
+            "--check",
+            "--fail-on",
+            "warning",
+        ])
+        .output()
+        .expect("failed to run cargo-feature-lens");
+
+    assert!(!output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("Bloat"));
 }

@@ -1,30 +1,39 @@
 # Roadmap
 
-This roadmap outlines planned and ongoing work for `cargo-feature-lens`.
+`cargo-feature-lens` is now maintenance-ready for its intended lightweight auditing scope.
 
-## Current tasks (open issues)
+## Current status
 
-- **#9** Add CI workflow for test and formatting validation — Ensure contributors' PRs run `cargo fmt`, `cargo clippy`, `cargo test`, and optional builds automatically. [`feature`, `infra`, `ci`, `good first issue`] 
-- **#8** Expand report output with richer dependency and feature insights — Improve Markdown/JSON/terminal reports with additional insights, counts, summaries, and terminal formatting. [`enhancement`, `output`] 
+Core implementation is complete and usable today:
 
-## Planned enhancements
+- terminal/Markdown/JSON reporting with deterministic finding summaries
+- DOT and Mermaid graph exports
+- `--check` severity gating for CI
+- severity filtering (`--min-severity`)
+- built-in curated rule guidance plus local `feature-lens.toml` rules
+- default-feature analysis and source-aware unused-feature detection
+- remote crate analysis and resolver-aware feature graphing
 
-- Remote crate resolution follow-ups, such as feature selection flags and offline cache controls
-- Additional analysis passes (e.g., feature overlap metrics, optional dependency impact)
-- Enhanced visualization for dependency features
-- Release-ready builds and CI pipeline enhancements
+Completed foundational tasks (including earlier work tracked as #8 and #9) are no longer treated as active roadmap debt.
 
-## Contributor workflow improvements
+## Ongoing maintenance priorities
 
-- Ensure triage and labeling matches `docs/ISSUE_LABELS.md`
-- Add issue-specific acceptance criteria and mirrored dependencies
-- Maintain PR discipline for focused changes and updates to roadmap items
+- Keep `docs/suggestions.json` curated, high-confidence, and fixture-backed
+- Preserve deterministic output behavior across terminal/Markdown/JSON and graph exports
+- Maintain docs accuracy as behavior evolves
+- Keep CI and lint/test/build gates healthy
 
-## Milestones
+## Optional future expansion
 
-- Output safety and CI readiness
-- Documentation readiness
-- Release readiness
-- Distribution readiness
-- Advanced parser expansion
-- Contributor workflow polish
+Future work is additive and optional, not required for baseline usability:
+
+- expand the rule database conservatively as new high-confidence cases are validated
+- add focused analysis passes with clear false-positive boundaries
+- improve graph/report ergonomics for larger workspaces
+- add release/distribution polish where it reduces maintenance overhead
+
+## Contributor guidance
+
+- Prefer small, reviewable PRs tied to explicit acceptance criteria
+- Update fixtures/tests alongside rule or reporting changes
+- Treat roadmap additions as new scope proposals, not unfinished core completion work

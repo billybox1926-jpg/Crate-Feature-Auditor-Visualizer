@@ -11,7 +11,7 @@
 
 ## CLI layer
 
-`src/main.rs` intentionally stays thin. It handles cargo-subcommand argument normalization, option parsing, loading `suggestions.json`, selecting the report format, and writing either stdout or an output file.
+`src/main.rs` intentionally stays thin. It handles cargo-subcommand argument normalization, option parsing, loading optional suggestion rules from `docs/suggestions.json`, selecting the report format, and writing either stdout or an output file.
 
 ## Metadata loading
 
@@ -47,14 +47,14 @@ Each file under `src/analysis/` implements one pass:
 
 - `unused.rs` reports active features that are not referenced by the parsed manifest data.
 - `duplication.rs` reports features requested by more than one unique ancestor.
-- `conflicts.rs` applies conflict rules from `suggestions.json`.
-- `bloat.rs` applies bloat rules from `suggestions.json`.
+- `conflicts.rs` applies conflict rules from `docs/suggestions.json`.
+- `bloat.rs` applies bloat rules from `docs/suggestions.json`.
 
 `src/analysis/mod.rs` owns shared data types (`AnalysisContext`, `Finding`, `FindingKind`, `Severity`) and merges pass output into a stable sorted list.
 
 ## Suggestion database
 
-`suggestions.json` is an optional rule database loaded from the current working directory. Conflict rules contain a crate name, feature set, severity, and message. Bloat rules contain a crate name, feature, optional `pulls_in` list, and message.
+`docs/suggestions.json` is the canonical optional rule database. Conflict rules contain a crate name, feature set, severity, and message. Bloat rules contain a crate name, feature, optional `pulls_in` list, and message. For backwards compatibility with older checkouts, the CLI checks `docs/suggestions.json` first and then falls back to a root-level `suggestions.json` if the docs file is not present.
 
 ## Reporting
 

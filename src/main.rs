@@ -25,7 +25,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 }
 
 fn run() -> Result<(), Box<dyn Error>> {
-    let cli = Cli::parse(env::args_os().collect())?;
+    let cli = Cli::parse(cargo_aware_args())?;
 
     if cli.crate_filter.is_some() && cli.manifest_path == PathBuf::from(".") {
         return Err(
@@ -123,6 +123,16 @@ impl Cli {
     }
 }
 
+fn cargo_aware_args() -> Vec<OsString> {
+    let mut args: Vec<OsString> = env::args_os().collect();
+
+    if args.get(1).and_then(|arg| arg.to_str()) == Some("feature-lens") {
+        args.remove(1);
+    }
+
+    args
+}
+
 #[cfg(test)]
 mod tests {
     use super::Cli;
@@ -130,7 +140,7 @@ mod tests {
     use std::path::PathBuf;
 
     #[test]
-    fn parses_cargo_style_flags() {
+    fn parses_direct_binary_flags() {
         let cli = Cli::parse(vec![
             OsString::from("cargo-feature-lens"),
             OsString::from("--unused"),
@@ -143,5 +153,37 @@ mod tests {
         assert_eq!(cli.crate_filter.as_deref(), Some("serde"));
         assert_eq!(cli.manifest_path, PathBuf::from("."));
         assert_eq!(cli.format, None);
+    }
+
+    #[test]
+    fn parses_cargo_subcommand_flags() {
+        let cli = Cli::parse(vec![
+            OsString::from("cargo-feature-lens"),
+            OsString::from("--manifest-path"),
+            OsString::from("Cargo.toml"),
+            OsString::from("--crate"),
+            OsString::from("cargo-feature-lens"),
+        ])
+        .unwrap();
+
+        assert_eq!(cli.manifest_path, PathBuf::from("Cargo.toml"));
+        assert_eq!(cli.crate_filter.as_deref(), Some("cargo-feature-lens"));
+    }
+
+    #[test]
+    fn strips_cargo_subcommand_name() {
+        let mut args = vec![
+            OsString::from("cargo-feature-lens"),
+            OsString::from("feature-lens"),
+            OsString::from("--manifest-path"),
+            OsString::from("Cargo.toml"),
+        ];
+
+        if args.get(1).and_then(|arg| arg.to_str()) == Some("feature-lens") {
+            args.remove(1);
+        }
+
+        let cli = Cli::parse(args).unwrap();
+        assert_eq!(cli.manifest_path, PathBuf::from("Cargo.toml"));
     }
 }

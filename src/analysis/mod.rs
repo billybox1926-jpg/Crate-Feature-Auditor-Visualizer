@@ -89,6 +89,21 @@ impl Suggestions {
         let raw = fs::read_to_string(path)?;
         Ok(parse_suggestions(&raw))
     }
+
+    pub fn load_local_optional(path: &Path) -> Result<Self, Box<dyn std::error::Error>> {
+        if !path.exists() {
+            return Ok(Self::default());
+        }
+        let raw = fs::read_to_string(path)?;
+        parse_local_suggestions(&raw)
+            .map_err(|err| format!("failed to parse {}: {err}", path.display()).into())
+    }
+
+    pub fn extend(&mut self, other: Suggestions) {
+        self.conflicts.extend(other.conflicts);
+        self.bloat.extend(other.bloat);
+        self.default_features.extend(other.default_features);
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -224,6 +239,131 @@ fn parse_suggestions(raw: &str) -> Suggestions {
     }
 
     suggestions
+}
+
+fn parse_local_suggestions(raw: &str) -> Result<Suggestions, String> {
+    let mut out = Suggestions::default();
+    let mut section: Option<String> = None;
+    let mut pending = std::collections::BTreeMap::<String, String>::new();
+    let mut line_no = 0usize;
+
+    let push_pending =
+        |section: Option<&str>,
+         pending: &mut std::collections::BTreeMap<String, String>,
+         out: &mut Suggestions|
+         -> Result<(), String> {
+            let Some(current) = section else {
+                return Ok(());
+            };
+            match current {
+                "conflicts" => {
+                    let crate_name = pending.remove("crate").ok_or("missing `crate`")?;
+                    let features = pending
+                        .remove("features")
+                        .ok_or("missing `features`")?
+                        .split(',')
+                        .map(|item| item.trim().to_string())
+                        .filter(|item| !item.is_empty())
+                        .collect::<Vec<_>>();
+                    let message = pending.remove("message").ok_or("missing `message`")?;
+                    let severity = match pending.remove("severity") {
+                        Some(raw) => Severity::parse(&raw)
+                            .ok_or_else(|| format!("invalid `severity`: {raw}"))?,
+                        None => Severity::Warning,
+                    };
+                    out.conflicts.push(ConflictRule {
+                        crate_name,
+                        features,
+                        severity,
+                        message,
+                    });
+                }
+                "bloat" => {
+                    let crate_name = pending.remove("crate").ok_or("missing `crate`")?;
+                    let feature = pending.remove("feature").ok_or("missing `feature`")?;
+                    let message = pending.remove("message").ok_or("missing `message`")?;
+                    let pulls_in = pending
+                        .remove("pulls_in")
+                        .map(|value| {
+                            value
+                                .split(',')
+                                .map(|item| item.trim().to_string())
+                                .filter(|item| !item.is_empty())
+                                .collect::<Vec<_>>()
+                        })
+                        .unwrap_or_default();
+                    let severity = match pending.remove("severity") {
+                        Some(raw) => Severity::parse(&raw)
+                            .ok_or_else(|| format!("invalid `severity`: {raw}"))?,
+                        None => Severity::Info,
+                    };
+                    out.bloat.push(BloatRule {
+                        crate_name,
+                        feature,
+                        pulls_in,
+                        severity,
+                        message,
+                    });
+                }
+                "default_features.suggest_opt_out" => {
+                    let crate_name = pending.remove("crate").ok_or("missing `crate`")?;
+                    let reason = pending.remove("reason").ok_or("missing `reason`")?;
+                    let severity = match pending.remove("severity") {
+                        Some(raw) => Severity::parse(&raw)
+                            .ok_or_else(|| format!("invalid `severity`: {raw}"))?,
+                        None => Severity::Info,
+                    };
+                    out.default_features.push(DefaultFeatureRule {
+                        crate_name,
+                        severity,
+                        reason,
+                    });
+                }
+                _ => {}
+            }
+            pending.clear();
+            Ok(())
+        };
+
+    for raw_line in raw.lines() {
+        line_no += 1;
+        let line = raw_line.split('#').next().unwrap_or("").trim();
+        if line.is_empty() {
+            continue;
+        }
+        if line.starts_with("[[") && line.ends_with("]]") {
+            push_pending(section.as_deref(), &mut pending, &mut out)
+                .map_err(|err| format!("{err} in section before line {line_no}"))?;
+            section = Some(line[2..line.len() - 2].to_string());
+            continue;
+        }
+        let Some((key, value)) = line.split_once('=') else {
+            return Err(format!("line {line_no}: expected `key = value`"));
+        };
+        let key = key.trim().to_string();
+        let value = value.trim();
+        let parsed = if value.starts_with('\"') {
+            parse_json_string(value)
+                .ok_or_else(|| format!("line {line_no}: malformed string"))?
+                .0
+        } else if value.starts_with('[') {
+            if !value.ends_with(']') {
+                return Err(format!("line {line_no}: malformed array"));
+            }
+            let arr = string_items(value);
+            if arr.is_empty() && value != "[]" {
+                return Err(format!(
+                    "line {line_no}: array items must be quoted strings"
+                ));
+            }
+            arr.join(",")
+        } else {
+            return Err(format!("line {line_no}: unsupported value `{value}`"));
+        };
+        pending.insert(key, parsed);
+    }
+    push_pending(section.as_deref(), &mut pending, &mut out)?;
+    Ok(out)
 }
 
 fn object_field(object: &str, key: &str) -> Option<String> {
@@ -436,5 +576,85 @@ mod tests {
         let findings = default_features(&AnalysisContext::new(&graph, &suggestions));
 
         assert!(findings.is_empty());
+    }
+
+    #[test]
+    fn parses_local_toml_rules() {
+        let suggestions = parse_local_suggestions(
+            r#"
+[[conflicts]]
+crate = "reqwest"
+features = ["native-tls", "rustls-tls"]
+severity = "error"
+message = "exclusive"
+
+[[bloat]]
+crate = "serde"
+feature = "derive"
+pulls_in = ["syn", "quote"]
+message = "macro heft"
+
+[[default_features.suggest_opt_out]]
+crate = "log"
+reason = "trim defaults"
+"#,
+        )
+        .expect("local rules parse");
+        assert_eq!(suggestions.conflicts.len(), 1);
+        assert_eq!(suggestions.bloat.len(), 1);
+        assert_eq!(suggestions.default_features.len(), 1);
+    }
+
+    #[test]
+    fn merges_suggestions_additively() {
+        let mut left = Suggestions {
+            conflicts: vec![ConflictRule {
+                crate_name: "a".to_string(),
+                features: vec!["x".to_string(), "y".to_string()],
+                severity: Severity::Warning,
+                message: "m".to_string(),
+            }],
+            ..Suggestions::default()
+        };
+        let right = Suggestions {
+            bloat: vec![BloatRule {
+                crate_name: "b".to_string(),
+                feature: "f".to_string(),
+                pulls_in: vec![],
+                severity: Severity::Info,
+                message: "bloat".to_string(),
+            }],
+            ..Suggestions::default()
+        };
+        left.extend(right);
+        assert_eq!(left.conflicts.len(), 1);
+        assert_eq!(left.bloat.len(), 1);
+    }
+
+    #[test]
+    fn rejects_invalid_local_severity() {
+        let err = parse_local_suggestions(
+            r#"
+[[conflicts]]
+crate = "reqwest"
+features = ["native-tls", "rustls-tls"]
+severity = "bogus"
+message = "exclusive"
+"#,
+        )
+        .expect_err("should fail");
+        assert!(err.contains("invalid `severity`: bogus"));
+    }
+
+    #[test]
+    fn rejects_malformed_local_toml() {
+        let err = parse_local_suggestions(
+            r#"
+[[conflicts]]
+crate = reqwest
+"#,
+        )
+        .expect_err("should fail");
+        assert!(err.contains("unsupported value"));
     }
 }

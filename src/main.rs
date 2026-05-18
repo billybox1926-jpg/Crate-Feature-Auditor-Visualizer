@@ -45,7 +45,10 @@ fn run() -> Result<(), Box<dyn Error>> {
     } else {
         root_suggestions_path
     };
-    let suggestions = analysis::Suggestions::load_optional(&suggestions_path)?;
+    let mut suggestions = analysis::Suggestions::load_optional(&suggestions_path)?;
+    let local_suggestions_path = current_dir.join("feature-lens.toml");
+    let local_suggestions = analysis::Suggestions::load_local_optional(&local_suggestions_path)?;
+    suggestions.extend(local_suggestions);
     let context = AnalysisContext::new(&graph, &suggestions);
     let findings = analysis::run_all(&context);
 

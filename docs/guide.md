@@ -98,7 +98,7 @@ Common fixes:
 
 ### Conflict
 
-Conflict findings are loaded from `suggestions.json`. They flag known combinations that are mutually exclusive, redundant, or suspicious for a specific crate.
+Conflict findings are loaded from built-in rules in `docs/suggestions.json` and optional local rules in `feature-lens.toml`. They flag known combinations that are mutually exclusive, redundant, or suspicious for a specific crate.
 
 Common fixes:
 
@@ -108,11 +108,11 @@ Common fixes:
 
 ### Bloat
 
-Bloat findings are also loaded from `suggestions.json`. They highlight optional features that commonly pull in large or duplicate dependency trees. When the rule lists `pulls_in`, the report includes those crate names so you can quickly inspect whether they are already present elsewhere.
+Bloat findings are also loaded from built-in `docs/suggestions.json` plus optional local `feature-lens.toml` rules. They highlight optional features that commonly pull in large or duplicate dependency trees. When the rule lists `pulls_in`, the report includes those crate names so you can quickly inspect whether they are already present elsewhere.
 
 ### DefaultFeature
 
-Default-feature findings come from the `default_features.suggest_opt_out` rules in `docs/suggestions.json`. They are advisory suggestions to review whether a dependency should opt out of default features; they are not proof that default features are always wrong or that the current configuration is broken.
+Default-feature findings come from the `default_features.suggest_opt_out` rules in built-in `docs/suggestions.json` and optional local `feature-lens.toml` rules. They are advisory suggestions to review whether a dependency should opt out of default features; they are not proof that default features are always wrong or that the current configuration is broken.
 
 The rule is evaluated against Cargo's resolved feature graph from `cargo metadata`, not by guessing from raw `Cargo.toml` text. The current heuristic emits a finding when a matching crate is present and the resolved active features include `default`, which indicates default-feature behavior is active for that crate. The finding uses the reason configured in `docs/suggestions.json` and defaults to `info` severity when a rule does not specify a severity.
 
@@ -122,6 +122,36 @@ Common fixes:
 - Disable defaults with `default-features = false` if your code does not need them.
 - Add back only the narrower features you need, such as a specific TLS backend.
 - Measure before and after with compile-time and binary-size tools when the tradeoff is unclear.
+
+## Local custom rules (`feature-lens.toml`)
+
+`cargo feature-lens` optionally looks for `feature-lens.toml` in the current working directory where you run the command. If the file is missing, behavior is unchanged: only built-in rules from `docs/suggestions.json` are used. If the file exists, local rules are merged additively with built-in rules (first pass: no override semantics).
+
+Supported schema:
+
+```toml
+[[conflicts]]
+crate = "reqwest"
+features = ["native-tls", "rustls-tls"]
+severity = "error" # optional, defaults to warning
+message = "TLS backends are mutually exclusive"
+
+[[bloat]]
+crate = "serde"
+feature = "derive"
+pulls_in = ["syn", "quote"] # optional
+severity = "info"           # optional, defaults to info
+message = "proc-macro stack may be heavier than needed"
+
+[[default_features.suggest_opt_out]]
+crate = "log"
+severity = "info" # optional, defaults to info
+reason = "consider disabling defaults for no-std targets"
+```
+
+Malformed local files fail fast with a clear parse error. Local-rule findings participate in terminal, Markdown, JSON, and `--check` severity thresholds.
+
+Use local rules as project policy and review hints. A local finding does not, by itself, prove a dependency is broken.
 
 ## Example feature-trimming workflow
 

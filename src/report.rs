@@ -202,7 +202,7 @@ fn render_json(graph: &FeatureGraph, findings: &[&Finding], crate_filter: Option
             .collect::<Vec<_>>();
         for (finding_index, finding) in node_findings.iter().enumerate() {
             if finding_index > 0 {
-                output.push_str(",");
+                output.push(',');
             }
             output.push_str("\n        {");
             output.push_str(&format!("\n          \"kind\": \"{:?}\",", finding.kind));

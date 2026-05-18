@@ -1,0 +1,11 @@
+[package]
+name = "workspace-inheritance-member"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+default = ["serde"]
+
+[dependencies]
+serde = { workspace = true, optional = true, features = ["rc"] }
+tracing = { workspace = true }

@@ -1,0 +1,10 @@
+[package]
+name = "target-dependencies-fixture"
+version = "0.1.0"
+edition = "2021"
+
+[target.'cfg(unix)'.dependencies]
+nix = { version = "0.28", optional = true, features = ["process"] }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.52", optional = true, features = ["Win32_System_Threading"] }

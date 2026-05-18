@@ -10,6 +10,16 @@ pub struct ParsedManifest {
     pub optional_dependencies: BTreeSet<String>,
     pub dependency_features: BTreeMap<String, Vec<String>>,
     pub default_features: Vec<String>,
+    pub workspace_dependencies: BTreeMap<String, DependencySpec>,
+    pub inherited_workspace_dependencies: BTreeSet<String>,
+}
+
+/// Feature-relevant fields from a dependency declaration.
+#[derive(Debug, Clone, Default, Eq, PartialEq)]
+pub struct DependencySpec {
+    pub optional: bool,
+    pub features: Vec<String>,
+    pub workspace: bool,
 }
 
 #[derive(Debug, Default)]
@@ -36,7 +46,8 @@ impl ManifestCache {
             }
             Err(error) => return Err(error.into()),
         };
-        let parsed = parse_manifest(&raw);
+        let mut parsed = parse_manifest(&raw);
+        hydrate_workspace_dependencies(&path, &mut parsed)?;
         self.manifests.insert(path, parsed.clone());
         Ok(parsed)
     }
@@ -69,13 +80,23 @@ fn parse_manifest(raw: &str) -> ParsedManifest {
                 }
                 parsed.features.insert(key, values);
             }
-            section if is_dependency_section(section) && value.starts_with('{') => {
-                if table_bool(value, "optional") {
+            "workspace.dependencies" => {
+                parsed
+                    .workspace_dependencies
+                    .insert(key, parse_dependency_spec(value));
+            }
+            section if is_dependency_section(section) => {
+                let spec = parse_dependency_spec(value);
+                if spec.optional {
                     parsed.optional_dependencies.insert(key.clone());
                 }
-                let features = table_array(value, "features");
-                if !features.is_empty() {
-                    parsed.dependency_features.insert(key, features);
+                if !spec.features.is_empty() {
+                    parsed
+                        .dependency_features
+                        .insert(key.clone(), spec.features.clone());
+                }
+                if spec.workspace {
+                    parsed.inherited_workspace_dependencies.insert(key);
                 }
             }
             _ => {}
@@ -83,6 +104,61 @@ fn parse_manifest(raw: &str) -> ParsedManifest {
     }
 
     parsed
+}
+
+fn hydrate_workspace_dependencies(
+    path: &Path,
+    parsed: &mut ParsedManifest,
+) -> Result<(), Box<dyn std::error::Error>> {
+    if parsed.inherited_workspace_dependencies.is_empty() {
+        return Ok(());
+    }
+
+    let workspace_dependencies = find_workspace_dependencies(path)?;
+    for dependency in &parsed.inherited_workspace_dependencies {
+        let Some(workspace_spec) = workspace_dependencies.get(dependency) else {
+            continue;
+        };
+
+        if workspace_spec.optional {
+            parsed.optional_dependencies.insert(dependency.clone());
+        }
+
+        let mut features = BTreeSet::new();
+        if let Some(existing) = parsed.dependency_features.get(dependency) {
+            features.extend(existing.iter().cloned());
+        }
+        features.extend(workspace_spec.features.iter().cloned());
+        if !features.is_empty() {
+            parsed
+                .dependency_features
+                .insert(dependency.clone(), features.into_iter().collect());
+        }
+    }
+
+    Ok(())
+}
+
+fn find_workspace_dependencies(
+    path: &Path,
+) -> Result<BTreeMap<String, DependencySpec>, Box<dyn std::error::Error>> {
+    let Some(manifest_dir) = path.parent() else {
+        return Ok(BTreeMap::new());
+    };
+
+    for ancestor in manifest_dir.ancestors().skip(1) {
+        let candidate = ancestor.join("Cargo.toml");
+        if candidate == path || !candidate.is_file() {
+            continue;
+        }
+        let raw = fs::read_to_string(candidate)?;
+        let workspace_dependencies = parse_manifest(&raw).workspace_dependencies;
+        if !workspace_dependencies.is_empty() {
+            return Ok(workspace_dependencies);
+        }
+    }
+
+    Ok(BTreeMap::new())
 }
 
 fn is_dependency_section(section: &str) -> bool {
@@ -134,6 +210,18 @@ fn parse_array(value: &str) -> Vec<String> {
         .collect()
 }
 
+fn parse_dependency_spec(value: &str) -> DependencySpec {
+    if !value.trim_start().starts_with('{') {
+        return DependencySpec::default();
+    }
+
+    DependencySpec {
+        optional: table_bool(value, "optional"),
+        features: table_array(value, "features"),
+        workspace: table_bool(value, "workspace"),
+    }
+}
+
 fn table_array(value: &str, key: &str) -> Vec<String> {
     let Some(start) = value.find(key) else {
         return Vec::new();
@@ -158,7 +246,8 @@ fn table_bool(value: &str, key: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::parse_manifest;
+    use super::{parse_manifest, ManifestCache};
+    use std::path::Path;
 
     #[test]
     fn parses_optional_dependencies_and_features() {
@@ -181,5 +270,49 @@ mod tests {
         assert!(parsed.optional_dependencies.contains("serde"));
         assert_eq!(parsed.default_features, vec!["serde"]);
         assert_eq!(parsed.dependency_features["serde"], vec!["derive"]);
+    }
+
+    #[test]
+    fn parses_target_specific_dependency_sections() {
+        let parsed = parse_manifest(include_str!(
+            "../tests/fixtures/target-dependencies/Cargo.toml"
+        ));
+
+        assert!(parsed.optional_dependencies.contains("nix"));
+        assert!(parsed.optional_dependencies.contains("windows-sys"));
+        assert_eq!(parsed.dependency_features["nix"], vec!["process"]);
+        assert_eq!(
+            parsed.dependency_features["windows-sys"],
+            vec!["Win32_System_Threading"]
+        );
+    }
+
+    #[test]
+    fn parses_workspace_dependency_inheritance() {
+        let mut cache = ManifestCache::default();
+        let parsed = cache
+            .get_or_parse(Path::new(
+                "tests/fixtures/workspace-inheritance/member-a/Cargo.toml",
+            ))
+            .unwrap();
+
+        assert!(parsed.inherited_workspace_dependencies.contains("serde"));
+        assert!(parsed.inherited_workspace_dependencies.contains("tracing"));
+        assert!(parsed.optional_dependencies.contains("serde"));
+        assert_eq!(parsed.dependency_features["serde"], vec!["derive", "rc"]);
+        assert_eq!(parsed.dependency_features["tracing"], vec!["attributes"]);
+    }
+
+    #[test]
+    fn missing_manifest_still_returns_empty_fallback() {
+        let mut cache = ManifestCache::default();
+        let parsed = cache
+            .get_or_parse(Path::new("tests/fixtures/missing/Cargo.toml"))
+            .unwrap();
+
+        assert!(parsed.package_name.is_none());
+        assert!(parsed.features.is_empty());
+        assert!(parsed.optional_dependencies.is_empty());
+        assert!(parsed.dependency_features.is_empty());
     }
 }

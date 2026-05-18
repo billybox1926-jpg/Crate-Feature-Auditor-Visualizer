@@ -1,0 +1,7 @@
+[workspace]
+members = ["member-a"]
+resolver = "2"
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+tracing = { version = "0.1", features = ["attributes"] }

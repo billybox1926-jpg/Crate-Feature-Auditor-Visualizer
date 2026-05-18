@@ -27,7 +27,15 @@ impl ManifestCache {
             return Ok(manifest.clone());
         }
 
-        let raw = fs::read_to_string(&path)?;
+        let raw = match fs::read_to_string(&path) {
+            Ok(raw) => raw,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                let parsed = ParsedManifest::default();
+                self.manifests.insert(path, parsed.clone());
+                return Ok(parsed);
+            }
+            Err(error) => return Err(error.into()),
+        };
         let parsed = parse_manifest(&raw);
         self.manifests.insert(path, parsed.clone());
         Ok(parsed)
@@ -61,9 +69,7 @@ fn parse_manifest(raw: &str) -> ParsedManifest {
                 }
                 parsed.features.insert(key, values);
             }
-            "dependencies" | "dev-dependencies" | "build-dependencies"
-                if value.starts_with('{') =>
-            {
+            section if is_dependency_section(section) && value.starts_with('{') => {
                 if table_bool(value, "optional") {
                     parsed.optional_dependencies.insert(key.clone());
                 }
@@ -79,8 +85,36 @@ fn parse_manifest(raw: &str) -> ParsedManifest {
     parsed
 }
 
+fn is_dependency_section(section: &str) -> bool {
+    matches!(
+        section,
+        "dependencies" | "dev-dependencies" | "build-dependencies"
+    ) || section.ends_with(".dependencies")
+        || section.ends_with(".dev-dependencies")
+        || section.ends_with(".build-dependencies")
+}
+
 fn strip_comment(line: &str) -> &str {
-    line.split_once('#').map(|(head, _)| head).unwrap_or(line)
+    let mut in_string = false;
+    let mut escaped = false;
+
+    for (idx, ch) in line.char_indices() {
+        if in_string {
+            if escaped {
+                escaped = false;
+            } else if ch == '\\' {
+                escaped = true;
+            } else if ch == '"' {
+                in_string = false;
+            }
+        } else if ch == '"' {
+            in_string = true;
+        } else if ch == '#' {
+            return &line[..idx];
+        }
+    }
+
+    line
 }
 
 fn parse_string(value: &str) -> Option<String> {
@@ -101,10 +135,17 @@ fn parse_array(value: &str) -> Vec<String> {
 }
 
 fn table_array(value: &str, key: &str) -> Vec<String> {
-    let Some(start) = value.find(&format!("{key} = [")) else {
+    let Some(start) = value.find(key) else {
         return Vec::new();
     };
-    let tail = &value[start + key.len() + 3..];
+    let tail = &value[start + key.len()..];
+    let Some((_, tail)) = tail.split_once('=') else {
+        return Vec::new();
+    };
+    let tail = tail.trim_start();
+    if !tail.starts_with('[') {
+        return Vec::new();
+    }
     let Some(end) = tail.find(']') else {
         return Vec::new();
     };

@@ -10,11 +10,13 @@ The tool uses `cargo metadata` and manifest parsing. It does not compile the tar
 
 ## Current capabilities
 
-- Build a best-effort feature graph from Cargo metadata and parsed `Cargo.toml` files.
-- Track active features, optional dependencies, dependency feature requests, and feature source paths.
-- Report unused, duplicate, conflict, and bloat findings.
-- Render reports as terminal text, Markdown, or JSON.
-- Filter reports by crate-name substring, unused findings, or bloat findings.
+- Build a feature graph from Cargo metadata and parsed `Cargo.toml` files while preserving Cargo's resolved active feature set.
+- Track active features, optional dependencies, dependency feature requests, direct dependencies, and feature source paths.
+- Report unused, duplicate, conflict, bloat, and default-feature opt-out findings.
+- Render reports as terminal text, Markdown, or enriched JSON.
+- Filter reports by crate-name substring, unused findings, bloat findings, or minimum severity.
+- Use `--check` with `--fail-on` thresholds to fail CI when findings meet a chosen severity.
+- Analyze a crate from crates.io with `--remote --crate NAME` without creating a local project manually.
 
 ## Installation from source
 
@@ -53,10 +55,12 @@ Focus the report:
 ```bash
 cargo feature-lens --unused
 cargo feature-lens --bloat
+cargo feature-lens --min-severity warning
+cargo feature-lens --check --fail-on error
 cargo feature-lens --manifest-path Cargo.toml --crate serde
 ```
 
-`--crate` currently filters local Cargo metadata. Remote crates.io analysis, such as analyzing `tokio` without a local manifest, is tracked as future work.
+`--crate` filters local Cargo metadata by default. To analyze a crate from crates.io, use `--remote --crate tokio`; add `--crate-version` to pin a version requirement.
 
 ## Documentation
 
@@ -87,6 +91,7 @@ Run against the included fixture:
 
 ```bash
 cargo run -- feature-lens --manifest-path tests/fixtures/basic/Cargo.toml
+cargo run -- --remote --crate serde --crate-version 1
 ```
 
 The `docs/suggestions.json` file is an optional rule database used by the conflict and bloat analysis passes.

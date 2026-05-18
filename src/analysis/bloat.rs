@@ -1,4 +1,4 @@
-use crate::analysis::{AnalysisContext, Finding, FindingKind, Severity};
+use crate::analysis::{AnalysisContext, Finding, FindingKind};
 
 pub fn analyze(context: &AnalysisContext<'_>) -> Vec<Finding> {
     let mut findings = Vec::new();
@@ -10,8 +10,12 @@ pub fn analyze(context: &AnalysisContext<'_>) -> Vec<Finding> {
                     crate_name: node.name.clone(),
                     feature: Some(rule.feature.clone()),
                     kind: FindingKind::Bloat,
-                    severity: Severity::Info,
-                    message: rule.message.clone(),
+                    severity: rule.severity,
+                    message: if rule.pulls_in.is_empty() {
+                        rule.message.clone()
+                    } else {
+                        format!("{} Pulls in: {}.", rule.message, rule.pulls_in.join(", "))
+                    },
                 });
             }
         }

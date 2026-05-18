@@ -55,6 +55,13 @@ pub fn resolve(
     for package in &metadata.packages {
         let manifest = manifests.get_or_parse(&package.manifest_path)?;
         let package_id = package.id.clone();
+        let mut available_features = manifest.features;
+        available_features.extend(package.features.clone());
+        let mut optional_dependencies = manifest.optional_dependencies;
+        optional_dependencies.extend(package.optional_dependencies.clone());
+        let mut dependency_features = manifest.dependency_features;
+        dependency_features.extend(package.dependency_features.clone());
+
         graph.nodes.insert(
             package_id.clone(),
             FeatureNode {
@@ -62,9 +69,9 @@ pub fn resolve(
                 name: package.name.clone(),
                 version: package.version.clone(),
                 manifest_path: package.manifest_path.display().to_string(),
-                available_features: manifest.features,
-                optional_dependencies: manifest.optional_dependencies,
-                dependency_features: manifest.dependency_features,
+                available_features,
+                optional_dependencies,
+                dependency_features,
                 ..FeatureNode::default()
             },
         );
@@ -91,7 +98,7 @@ pub fn resolve(
     }
 
     record_dependency_sources(&mut graph, &metadata.resolve_nodes);
-    expand_manifest_features(&mut graph);
+    record_manifest_feature_sources(&mut graph);
     Ok(graph)
 }
 
@@ -141,26 +148,23 @@ fn record_dependency_sources(graph: &mut FeatureGraph, nodes: &[ResolveNode]) {
     }
 }
 
-fn expand_manifest_features(graph: &mut FeatureGraph) {
+fn record_manifest_feature_sources(graph: &mut FeatureGraph) {
     for node in graph.nodes.values_mut() {
-        let mut pending: Vec<String> = node.active_features.iter().cloned().collect();
-        let mut seen = node.active_features.clone();
-
-        while let Some(feature) = pending.pop() {
-            if let Some(expanded) = node.available_features.get(&feature) {
-                for item in expanded {
-                    let normalized = normalize_feature_reference(item);
-                    if seen.insert(normalized.clone()) {
-                        node.active_features.insert(normalized.clone());
-                        node.feature_sources
-                            .entry(normalized.clone())
-                            .or_default()
-                            .push(FeatureSource {
-                                requested_by: format!("{}/{}", node.name, feature),
-                                path: vec![node.name.clone(), feature.clone()],
-                            });
-                        pending.push(normalized);
-                    }
+        let active = node.active_features.clone();
+        for feature in active {
+            let Some(expanded) = node.available_features.get(&feature) else {
+                continue;
+            };
+            for item in expanded {
+                let normalized = normalize_feature_reference(item);
+                if node.active_features.contains(&normalized) {
+                    node.feature_sources
+                        .entry(normalized.clone())
+                        .or_default()
+                        .push(FeatureSource {
+                            requested_by: format!("{}/{}", node.name, feature),
+                            path: vec![node.name.clone(), feature.clone(), normalized],
+                        });
                 }
             }
         }

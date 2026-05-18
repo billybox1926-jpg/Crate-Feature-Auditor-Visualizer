@@ -1,4 +1,5 @@
 use crate::analysis::{Finding, FindingKind, Severity};
+use crate::graph_export;
 use crate::resolver::{FeatureGraph, FeatureNode};
 
 const SEVERITY_ORDER: [Severity; 3] = [Severity::Info, Severity::Warning, Severity::Error];
@@ -15,6 +16,8 @@ pub enum OutputFormat {
     Terminal,
     Markdown,
     Json,
+    Dot,
+    Mermaid,
 }
 
 #[derive(Debug, Clone)]
@@ -47,6 +50,14 @@ pub fn render(
         OutputFormat::Json => Ok(render_json(
             graph,
             &findings,
+            options.crate_filter.as_deref(),
+        )),
+        OutputFormat::Dot => Ok(graph_export::render_dot(
+            graph,
+            options.crate_filter.as_deref(),
+        )),
+        OutputFormat::Mermaid => Ok(graph_export::render_mermaid(
+            graph,
             options.crate_filter.as_deref(),
         )),
     }

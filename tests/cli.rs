@@ -479,3 +479,94 @@ fn check_mode_passes_when_default_feature_threshold_is_warning() {
         String::from_utf8_lossy(&output.stderr)
     );
 }
+
+#[test]
+fn binary_can_render_dot_for_fixture_graph() {
+    let binary = env!("CARGO_BIN_EXE_cargo-feature-lens");
+    let output = Command::new(binary)
+        .args([
+            "--manifest-path",
+            "tests/fixtures/duplicate-feature-multiparent",
+            "--format",
+            "dot",
+        ])
+        .output()
+        .expect("failed to run cargo-feature-lens");
+
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.starts_with("digraph feature_lens {"));
+    assert!(stdout.contains("[label=\"duplicate-feature-root 0.1.0"));
+    assert!(
+        stdout.contains("duplicate_feature_root_0_1_0\" -> \"crate_path_")
+            && stdout.contains("mid_a_0_1_0\";")
+    );
+}
+
+#[test]
+fn binary_can_render_mermaid_for_fixture_graph() {
+    let binary = env!("CARGO_BIN_EXE_cargo-feature-lens");
+    let output = Command::new(binary)
+        .args([
+            "--manifest-path",
+            "tests/fixtures/duplicate-feature-multiparent",
+            "--format",
+            "mermaid",
+        ])
+        .output()
+        .expect("failed to run cargo-feature-lens");
+
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.starts_with("graph TD"));
+    assert!(stdout.contains("duplicate_feature_root_0_1_0[\"duplicate-feature-root 0.1.0"));
+    assert!(
+        stdout.contains("duplicate_feature_root_0_1_0 --> crate_path_")
+            && stdout.contains("mid_a_0_1_0")
+    );
+}
+
+#[test]
+fn binary_writes_dot_output_file() {
+    let binary = env!("CARGO_BIN_EXE_cargo-feature-lens");
+    let path = std::env::temp_dir().join(format!(
+        "cargo-feature-lens-dot-{}-{}.dot",
+        std::process::id(),
+        std::thread::current().name().unwrap_or("test")
+    ));
+    let _ = std::fs::remove_file(&path);
+
+    let output = Command::new(binary)
+        .args([
+            "--manifest-path",
+            "tests/fixtures/duplicate-feature-multiparent",
+            "--format",
+            "dot",
+            "--output",
+            path.to_str().expect("temp path should be valid utf-8"),
+        ])
+        .output()
+        .expect("failed to run cargo-feature-lens");
+
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(output.stdout.is_empty());
+    let rendered = std::fs::read_to_string(&path).expect("dot output file should exist");
+    let _ = std::fs::remove_file(&path);
+    assert!(rendered.starts_with("digraph feature_lens {"));
+    assert!(
+        rendered.contains("duplicate_feature_root_0_1_0\" -> \"crate_path_")
+            && rendered.contains("mid_a_0_1_0\";")
+    );
+}

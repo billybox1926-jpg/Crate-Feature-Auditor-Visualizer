@@ -32,8 +32,10 @@ The parser extracts only the package, workspace member, resolve node, feature, a
 - default feature contents
 - optional dependencies
 - dependency feature requests
+- feature-relevant `[workspace.dependencies]` entries inherited with `workspace = true`
+- feature-relevant target-specific dependency sections such as `[target.'cfg(unix)'.dependencies]`
 
-The parser is deliberately small and best-effort. Robust workspace inheritance, target-specific dependencies, and fallback behavior for unavailable manifests are tracked in `TODO.md`.
+The parser is deliberately small and best-effort. It does not evaluate target `cfg` expressions; target-specific dependency data is folded into the same optional-dependency and dependency-feature maps so reports remain deterministic across platforms. Workspace inheritance is resolved by walking to the nearest ancestor manifest with `[workspace.dependencies]` and merging inherited feature lists with member-local dependency features. Missing package manifests still use an empty fallback manifest so unavailable local files do not abort graph construction. More exact Cargo feature unification remains future resolver work.
 
 ## Feature graph resolution
 

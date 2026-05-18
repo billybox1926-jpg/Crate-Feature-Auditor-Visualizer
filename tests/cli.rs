@@ -1,5 +1,8 @@
 use std::process::Command;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::{env, fs, path::PathBuf};
+
+static TEMP_DIR_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 #[test]
 fn binary_can_render_markdown_for_fixture() {
@@ -319,7 +322,12 @@ fn reqwest_non_conflict_fixture_does_not_emit_conflict_finding() {
 }
 
 fn write_temp_local_rules(contents: &str) -> PathBuf {
-    let dir = env::temp_dir().join(format!("cargo-feature-lens-test-{}", std::process::id()));
+    let unique = TEMP_DIR_COUNTER.fetch_add(1, Ordering::Relaxed);
+    let dir = env::temp_dir().join(format!(
+        "cargo-feature-lens-test-{}-{}",
+        std::process::id(),
+        unique
+    ));
     let _ = fs::remove_dir_all(&dir);
     fs::create_dir_all(&dir).expect("create temp dir");
     fs::write(dir.join("feature-lens.toml"), contents).expect("write local rules");
@@ -334,7 +342,7 @@ fn fixture_manifest_path() -> String {
 }
 
 #[test]
-fn local_rules_emit_custom_conflict_in_terminal_markdown_and_json() {
+fn local_rules_emit_custom_bloat_in_terminal_markdown_and_json() {
     let binary = env!("CARGO_BIN_EXE_cargo-feature-lens");
     let cwd = write_temp_local_rules(
         r#"
@@ -367,6 +375,39 @@ message = "custom local bloat"
         let stdout = String::from_utf8_lossy(&output.stdout);
         assert!(stdout.contains("custom local bloat"), "{stdout}");
     }
+}
+
+#[test]
+fn malformed_local_feature_lens_toml_exits_with_parse_error() {
+    let binary = env!("CARGO_BIN_EXE_cargo-feature-lens");
+    let cwd = write_temp_local_rules(
+        r#"
+[[bloat]]
+crate = "feature-lens-fixture"
+feature = "default"
+severity = "definitely-not-valid"
+message = "invalid severity"
+"#,
+    );
+
+    let output = Command::new(binary)
+        .args(["--manifest-path", &fixture_manifest_path()])
+        .args(["--crate", "feature-lens-fixture"])
+        .current_dir(&cwd)
+        .output()
+        .expect("run binary");
+
+    assert!(!output.status.success());
+    let combined = format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert!(combined.contains("failed to parse"), "{combined}");
+    assert!(
+        combined.contains("invalid `severity`: definitely-not-valid"),
+        "{combined}"
+    );
 }
 
 #[test]

@@ -247,82 +247,83 @@ fn parse_local_suggestions(raw: &str) -> Result<Suggestions, String> {
     let mut pending = std::collections::BTreeMap::<String, String>::new();
     let mut line_no = 0usize;
 
-    let push_pending = |section: Option<&str>,
-                        pending: &mut std::collections::BTreeMap<String, String>,
-                        out: &mut Suggestions|
-     -> Result<(), String> {
-        let Some(current) = section else {
-            return Ok(());
+    let push_pending =
+        |section: Option<&str>,
+         pending: &mut std::collections::BTreeMap<String, String>,
+         out: &mut Suggestions|
+         -> Result<(), String> {
+            let Some(current) = section else {
+                return Ok(());
+            };
+            match current {
+                "conflicts" => {
+                    let crate_name = pending.remove("crate").ok_or("missing `crate`")?;
+                    let features = pending
+                        .remove("features")
+                        .ok_or("missing `features`")?
+                        .split(',')
+                        .map(|item| item.trim().to_string())
+                        .filter(|item| !item.is_empty())
+                        .collect::<Vec<_>>();
+                    let message = pending.remove("message").ok_or("missing `message`")?;
+                    let severity = match pending.remove("severity") {
+                        Some(raw) => Severity::parse(&raw)
+                            .ok_or_else(|| format!("invalid `severity`: {raw}"))?,
+                        None => Severity::Warning,
+                    };
+                    out.conflicts.push(ConflictRule {
+                        crate_name,
+                        features,
+                        severity,
+                        message,
+                    });
+                }
+                "bloat" => {
+                    let crate_name = pending.remove("crate").ok_or("missing `crate`")?;
+                    let feature = pending.remove("feature").ok_or("missing `feature`")?;
+                    let message = pending.remove("message").ok_or("missing `message`")?;
+                    let pulls_in = pending
+                        .remove("pulls_in")
+                        .map(|value| {
+                            value
+                                .split(',')
+                                .map(|item| item.trim().to_string())
+                                .filter(|item| !item.is_empty())
+                                .collect::<Vec<_>>()
+                        })
+                        .unwrap_or_default();
+                    let severity = match pending.remove("severity") {
+                        Some(raw) => Severity::parse(&raw)
+                            .ok_or_else(|| format!("invalid `severity`: {raw}"))?,
+                        None => Severity::Info,
+                    };
+                    out.bloat.push(BloatRule {
+                        crate_name,
+                        feature,
+                        pulls_in,
+                        severity,
+                        message,
+                    });
+                }
+                "default_features.suggest_opt_out" => {
+                    let crate_name = pending.remove("crate").ok_or("missing `crate`")?;
+                    let reason = pending.remove("reason").ok_or("missing `reason`")?;
+                    let severity = match pending.remove("severity") {
+                        Some(raw) => Severity::parse(&raw)
+                            .ok_or_else(|| format!("invalid `severity`: {raw}"))?,
+                        None => Severity::Info,
+                    };
+                    out.default_features.push(DefaultFeatureRule {
+                        crate_name,
+                        severity,
+                        reason,
+                    });
+                }
+                _ => {}
+            }
+            pending.clear();
+            Ok(())
         };
-        match current {
-            "conflicts" => {
-                let crate_name = pending.remove("crate").ok_or("missing `crate`")?;
-                let features = pending
-                    .remove("features")
-                    .ok_or("missing `features`")?
-                    .split(',')
-                    .map(|item| item.trim().to_string())
-                    .filter(|item| !item.is_empty())
-                    .collect::<Vec<_>>();
-                let message = pending.remove("message").ok_or("missing `message`")?;
-                let severity = pending
-                    .remove("severity")
-                    .as_deref()
-                    .and_then(Severity::parse)
-                    .unwrap_or(Severity::Warning);
-                out.conflicts.push(ConflictRule {
-                    crate_name,
-                    features,
-                    severity,
-                    message,
-                });
-            }
-            "bloat" => {
-                let crate_name = pending.remove("crate").ok_or("missing `crate`")?;
-                let feature = pending.remove("feature").ok_or("missing `feature`")?;
-                let message = pending.remove("message").ok_or("missing `message`")?;
-                let pulls_in = pending
-                    .remove("pulls_in")
-                    .map(|value| {
-                        value
-                            .split(',')
-                            .map(|item| item.trim().to_string())
-                            .filter(|item| !item.is_empty())
-                            .collect::<Vec<_>>()
-                    })
-                    .unwrap_or_default();
-                let severity = pending
-                    .remove("severity")
-                    .as_deref()
-                    .and_then(Severity::parse)
-                    .unwrap_or(Severity::Info);
-                out.bloat.push(BloatRule {
-                    crate_name,
-                    feature,
-                    pulls_in,
-                    severity,
-                    message,
-                });
-            }
-            "default_features.suggest_opt_out" => {
-                let crate_name = pending.remove("crate").ok_or("missing `crate`")?;
-                let reason = pending.remove("reason").ok_or("missing `reason`")?;
-                let severity = pending
-                    .remove("severity")
-                    .as_deref()
-                    .and_then(Severity::parse)
-                    .unwrap_or(Severity::Info);
-                out.default_features.push(DefaultFeatureRule {
-                    crate_name,
-                    severity,
-                    reason,
-                });
-            }
-            _ => {}
-        }
-        pending.clear();
-        Ok(())
-    };
 
     for raw_line in raw.lines() {
         line_no += 1;
@@ -628,6 +629,21 @@ reason = "trim defaults"
         left.extend(right);
         assert_eq!(left.conflicts.len(), 1);
         assert_eq!(left.bloat.len(), 1);
+    }
+
+    #[test]
+    fn rejects_invalid_local_severity() {
+        let err = parse_local_suggestions(
+            r#"
+[[conflicts]]
+crate = "reqwest"
+features = ["native-tls", "rustls-tls"]
+severity = "bogus"
+message = "exclusive"
+"#,
+        )
+        .expect_err("should fail");
+        assert!(err.contains("invalid `severity`: bogus"));
     }
 
     #[test]

@@ -97,8 +97,41 @@ fn is_hidden(path: &Path) -> bool {
 
 pub fn extract_feature_references(raw: &str) -> BTreeSet<String> {
     let mut features = BTreeSet::new();
-    let mut remaining = raw;
+    let bytes = raw.as_bytes();
+    let mut i = 0;
 
+    while i < bytes.len() {
+        if let Some((next, consumed)) = skip_non_code(raw, i) {
+            i = next;
+            if consumed {
+                continue;
+            }
+        }
+
+        if raw[i..].starts_with("#[cfg(") {
+            if let Some((inside, next)) = read_balanced_group(raw, i + 5, '(', ')') {
+                collect_cfg_features(&inside, &mut features);
+                i = next;
+                continue;
+            }
+        }
+
+        if raw[i..].starts_with("cfg!(") {
+            if let Some((inside, next)) = read_balanced_group(raw, i + 4, '(', ')') {
+                collect_cfg_features(&inside, &mut features);
+                i = next;
+                continue;
+            }
+        }
+
+        i += 1;
+    }
+
+    features
+}
+
+fn collect_cfg_features(expr: &str, features: &mut BTreeSet<String>) {
+    let mut remaining = expr;
     while let Some(index) = remaining.find("feature") {
         remaining = &remaining[index + "feature".len()..];
         let trimmed = remaining.trim_start();
@@ -122,8 +155,77 @@ pub fn extract_feature_references(raw: &str) -> BTreeSet<String> {
         }
         remaining = &stripped[end_quote + 1..];
     }
+}
 
-    features
+fn read_balanced_group(
+    raw: &str,
+    start: usize,
+    open: char,
+    close: char,
+) -> Option<(String, usize)> {
+    let mut depth = 0i32;
+    let mut started = false;
+    let mut inside = String::new();
+
+    for (offset, ch) in raw[start..].char_indices() {
+        if ch == open {
+            depth += 1;
+            started = true;
+            if depth > 1 {
+                inside.push(ch);
+            }
+            continue;
+        }
+        if !started {
+            continue;
+        }
+        if ch == close {
+            depth -= 1;
+            if depth == 0 {
+                return Some((inside, start + offset + ch.len_utf8()));
+            }
+            inside.push(ch);
+            continue;
+        }
+        inside.push(ch);
+    }
+
+    None
+}
+
+fn skip_non_code(raw: &str, start: usize) -> Option<(usize, bool)> {
+    let rest = &raw[start..];
+    if rest.starts_with("//") {
+        let next = rest
+            .find('\n')
+            .map(|idx| start + idx + 1)
+            .unwrap_or(raw.len());
+        return Some((next, true));
+    }
+    if rest.starts_with("/*") {
+        if let Some(end) = rest.find("*/") {
+            return Some((start + end + 2, true));
+        }
+        return Some((raw.len(), true));
+    }
+    if rest.starts_with('"') {
+        let mut escaped = false;
+        for (offset, ch) in rest[1..].char_indices() {
+            if escaped {
+                escaped = false;
+                continue;
+            }
+            if ch == '\\' {
+                escaped = true;
+                continue;
+            }
+            if ch == '"' {
+                return Some((start + offset + 2, true));
+            }
+        }
+        return Some((raw.len(), true));
+    }
+    None
 }
 
 #[cfg(test)]
@@ -158,11 +260,14 @@ fn item() {}
     }
 
     #[test]
-    fn ignores_unrelated_string_literals() {
-        let raw = r#"
-let text = "feature not cfg";
-let cfg = "cfg(feature = string only)";
-"#;
+    fn ignores_comments_doc_examples_and_unrelated_string_literals() {
+        let raw = r##"
+// #[cfg(feature = "fake")]
+/// Example: #[cfg(feature = "fake_doc")]
+/* cfg!(feature = "fake_block") */
+let text = "feature = \"fake\"";
+let cfg = "#[cfg(feature = \"also_fake\")]";
+"##;
         assert!(extract_feature_references(raw).is_empty());
     }
 }

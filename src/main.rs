@@ -31,8 +31,9 @@ fn main() -> Result<(), Box<dyn Error>> {
 
 fn run() -> Result<(), Box<dyn Error>> {
     let cli = Cli::parse(cargo_aware_args())?;
+    let remote_analysis = is_remote_analysis(&cli);
 
-    let metadata = load_metadata_for_cli(&cli)?;
+    let metadata = load_metadata_for_cli(&cli, remote_analysis)?;
     let mut manifests = ManifestCache::default();
     let graph = resolver::resolve(&metadata, &mut manifests)?;
 
@@ -56,11 +57,17 @@ fn run() -> Result<(), Box<dyn Error>> {
         }
     });
 
+    let report_crate_filter = if remote_analysis {
+        None
+    } else {
+        cli.crate_filter.clone()
+    };
+
     let options = ReportOptions {
         format,
         only_unused: cli.unused,
         only_bloat: cli.bloat,
-        crate_filter: cli.crate_filter.clone(),
+        crate_filter: report_crate_filter,
         min_severity: cli.min_severity,
     };
 
@@ -72,19 +79,26 @@ fn run() -> Result<(), Box<dyn Error>> {
         print!("{rendered}");
     }
 
-    if cli.check && has_failing_findings(&findings, &cli) {
+    if cli.check && has_failing_findings(&findings, &cli, remote_analysis) {
         std::process::exit(1);
     }
 
     Ok(())
 }
 
-fn load_metadata_for_cli(cli: &Cli) -> Result<metadata::Metadata, Box<dyn Error>> {
-    if cli.remote || should_analyze_remote(cli) {
+fn load_metadata_for_cli(
+    cli: &Cli,
+    remote_analysis: bool,
+) -> Result<metadata::Metadata, Box<dyn Error>> {
+    if remote_analysis {
         return load_remote_crate_metadata(cli);
     }
 
     metadata::load_metadata(&cli.manifest_path)
+}
+
+fn is_remote_analysis(cli: &Cli) -> bool {
+    cli.remote || should_analyze_remote(cli)
 }
 
 fn should_analyze_remote(cli: &Cli) -> bool {
@@ -120,20 +134,74 @@ fn load_remote_crate_metadata(cli: &Cli) -> Result<metadata::Metadata, Box<dyn E
         ),
     )?;
 
-    let result = metadata::load_metadata_manifest(&manifest);
+    let result = metadata::load_metadata_manifest(&manifest)
+        .and_then(|metadata| re_root_remote_metadata(metadata, crate_name));
     let _ = fs::remove_dir_all(&dir);
     result
 }
 
-fn has_failing_findings(findings: &[Finding], cli: &Cli) -> bool {
+fn re_root_remote_metadata(
+    mut metadata: metadata::Metadata,
+    crate_name: &str,
+) -> Result<metadata::Metadata, Box<dyn Error>> {
+    let workspace_member = metadata
+        .workspace_members
+        .first()
+        .cloned()
+        .ok_or("remote metadata did not include the probe workspace member")?;
+    let probe_node = metadata
+        .resolve_nodes
+        .iter()
+        .find(|node| node.id == workspace_member)
+        .ok_or("remote metadata did not include the probe resolve node")?;
+    let target_id = probe_node
+        .dependencies
+        .iter()
+        .find(|dependency_id| {
+            metadata
+                .packages
+                .iter()
+                .any(|package| package.id == **dependency_id && package.name == crate_name)
+        })
+        .cloned()
+        .ok_or_else(|| format!("crate `{crate_name}` was not resolved from crates.io"))?;
+
+    let mut reachable = std::collections::BTreeSet::new();
+    let mut pending = vec![target_id.clone()];
+    while let Some(package_id) = pending.pop() {
+        if !reachable.insert(package_id.clone()) {
+            continue;
+        }
+        if let Some(node) = metadata
+            .resolve_nodes
+            .iter()
+            .find(|node| node.id == package_id)
+        {
+            pending.extend(node.dependencies.iter().cloned());
+        }
+    }
+
+    metadata.workspace_members = vec![target_id];
+    metadata
+        .packages
+        .retain(|package| reachable.contains(&package.id));
+    metadata
+        .resolve_nodes
+        .retain(|node| reachable.contains(&node.id));
+
+    Ok(metadata)
+}
+
+fn has_failing_findings(findings: &[Finding], cli: &Cli, remote_analysis: bool) -> bool {
     findings.iter().any(|finding| {
         finding.severity >= cli.fail_on
             && kind_selected(finding.kind, cli)
-            && cli
-                .crate_filter
-                .as_deref()
-                .map(|filter| finding.crate_name.contains(filter))
-                .unwrap_or(true)
+            && (remote_analysis
+                || cli
+                    .crate_filter
+                    .as_deref()
+                    .map(|filter| finding.crate_name.contains(filter))
+                    .unwrap_or(true))
     })
 }
 
@@ -233,7 +301,8 @@ fn cargo_aware_args() -> Vec<OsString> {
 
 #[cfg(test)]
 mod tests {
-    use super::Cli;
+    use super::{re_root_remote_metadata, Cli};
+    use cargo_feature_lens::metadata::{Metadata, Package, ResolveNode};
     use cargo_feature_lens::Severity;
     use std::ffi::OsString;
     use std::path::PathBuf;
@@ -286,5 +355,63 @@ mod tests {
 
         let cli = Cli::parse(args).unwrap();
         assert_eq!(cli.manifest_path, PathBuf::from("Cargo.toml"));
+    }
+
+    #[test]
+    fn remote_metadata_is_re_rooted_at_requested_crate() {
+        let metadata = Metadata {
+            packages: vec![
+                package("probe 0.0.0", "feature_lens_remote_probe"),
+                package("demo 1.0.0", "demo"),
+                package("helper 1.0.0", "helper"),
+                package("unrelated 1.0.0", "unrelated"),
+            ],
+            workspace_members: vec!["probe 0.0.0".to_string()],
+            resolve_nodes: vec![
+                ResolveNode {
+                    id: "probe 0.0.0".to_string(),
+                    dependencies: vec!["demo 1.0.0".to_string()],
+                    ..ResolveNode::default()
+                },
+                ResolveNode {
+                    id: "demo 1.0.0".to_string(),
+                    dependencies: vec!["helper 1.0.0".to_string()],
+                    ..ResolveNode::default()
+                },
+                ResolveNode {
+                    id: "helper 1.0.0".to_string(),
+                    ..ResolveNode::default()
+                },
+                ResolveNode {
+                    id: "unrelated 1.0.0".to_string(),
+                    ..ResolveNode::default()
+                },
+            ],
+        };
+
+        let re_rooted = re_root_remote_metadata(metadata, "demo").unwrap();
+
+        assert_eq!(re_rooted.workspace_members, vec!["demo 1.0.0"]);
+        assert_eq!(
+            re_rooted
+                .packages
+                .iter()
+                .map(|package| package.name.as_str())
+                .collect::<Vec<_>>(),
+            vec!["demo", "helper"]
+        );
+        assert!(re_rooted
+            .resolve_nodes
+            .iter()
+            .all(|node| node.id != "probe 0.0.0"));
+    }
+
+    fn package(id: &str, name: &str) -> Package {
+        Package {
+            id: id.to_string(),
+            name: name.to_string(),
+            version: "1.0.0".to_string(),
+            ..Package::default()
+        }
     }
 }

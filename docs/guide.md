@@ -76,7 +76,7 @@ Common fixes:
 
 ### Duplicate
 
-A duplicate finding means more than one ancestor requested the same active feature. Cargo unifies features, so this is not necessarily wrong, but it is often a sign that a direct dependency declaration can be simplified.
+A duplicate finding means more than one meaningful requester lineage in Cargo's resolved feature graph requested the same active crate feature. The auditor uses the enriched `FeatureGraph::feature_sources` data derived from `cargo metadata` as the source of truth, and the finding message lists the sorted requester paths that caused the warning. Cargo feature unification can make repeated requests valid, so duplication is a review signal rather than proof of a broken build; it may still point to redundant dependency declarations or unnecessary feature bloat.
 
 Common fixes:
 

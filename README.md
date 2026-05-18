@@ -1,5 +1,7 @@
 # cargo-feature-lens
 
+[![CI](https://github.com/billybox1926-jpg/Crate-Feature-Auditor-Visualizer/actions/workflows/ci.yml/badge.svg)](https://github.com/billybox1926-jpg/Crate-Feature-Auditor-Visualizer/actions/workflows/ci.yml)
+
 **Crate Feature Auditor & Visualizer**
 
 `cargo-feature-lens` is a Cargo subcommand that statically analyzes a Rust package or workspace dependency graph and reports which crate features are active, where duplicate feature activation may be happening, and which configured conflict or bloat rules match the current graph.
@@ -58,7 +60,7 @@ cargo feature-lens --manifest-path Cargo.toml --crate serde
 
 ## Documentation
 
-Start with the documentation index: [`docs/README.md`](docs/README.md).
+Start with the user guide, then use the supporting maintainer and project-planning docs as needed.
 
 Key documents:
 
@@ -71,6 +73,8 @@ Key documents:
 - [TODO](docs/TODO.md)
 
 ## Development
+
+The CI workflow runs the same core checks expected before changes land on `main`:
 
 ```bash
 cargo fmt --check
@@ -85,7 +89,7 @@ Run against the included fixture:
 cargo run -- feature-lens --manifest-path tests/fixtures/basic/Cargo.toml
 ```
 
-The root-level `suggestions.json` file is an optional rule database used by the conflict and bloat analysis passes.
+The `docs/suggestions.json` file is an optional rule database used by the conflict and bloat analysis passes.
 
 ## Repository workflow
 

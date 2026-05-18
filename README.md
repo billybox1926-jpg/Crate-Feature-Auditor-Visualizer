@@ -1,6 +1,6 @@
 # cargo-feature-lens
 
-[![CI](https://github.com/billybox1926-jpg/Crate-Feature-Auditor-Visualizer/actions/workflows/ci.yml/badge.svg)](https://github.com/billybox1926-jpg/Crate-Feature-Auditor-Visualizer/actions/workflows/ci.yml)
+[![CI](https://github.com/billybox1926-jpg/Crate-Feature-Auditor-Visualizer/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/billybox1926-jpg/Crate-Feature-Auditor-Visualizer/actions/workflows/ci.yml?query=branch%3Amain)
 
 **Crate Feature Auditor & Visualizer**
 

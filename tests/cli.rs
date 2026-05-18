@@ -211,3 +211,145 @@ fn check_mode_fails_on_conflict_threshold() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("✖ Conflict"));
 }
+
+#[test]
+fn terminal_report_includes_log_default_feature_suggestion() {
+    let binary = env!("CARGO_BIN_EXE_cargo-feature-lens");
+    let output = Command::new(binary)
+        .args([
+            "--manifest-path",
+            "tests/fixtures/default-log-active",
+            "--crate",
+            "log",
+        ])
+        .output()
+        .expect("failed to run cargo-feature-lens");
+
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("ℹ DefaultFeature"));
+    assert!(stdout.contains("Default features pull in no dependencies"));
+}
+
+#[test]
+fn markdown_report_includes_log_default_feature_suggestion() {
+    let binary = env!("CARGO_BIN_EXE_cargo-feature-lens");
+    let output = Command::new(binary)
+        .args([
+            "--manifest-path",
+            "tests/fixtures/default-log-active",
+            "--format",
+            "markdown",
+            "--crate",
+            "log",
+        ])
+        .output()
+        .expect("failed to run cargo-feature-lens");
+
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("| log |"));
+    assert!(stdout.contains("ℹ DefaultFeature: Default features pull in no dependencies"));
+}
+
+#[test]
+fn json_report_includes_reqwest_default_feature_suggestion() {
+    let binary = env!("CARGO_BIN_EXE_cargo-feature-lens");
+    let output = Command::new(binary)
+        .args([
+            "--manifest-path",
+            "tests/fixtures/default-reqwest-active",
+            "--format",
+            "json",
+            "--crate",
+            "reqwest",
+        ])
+        .output()
+        .expect("failed to run cargo-feature-lens");
+
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("\"kind\": \"DefaultFeature\""));
+    assert!(stdout.contains("\"severity\": \"Info\""));
+    assert!(stdout.contains("\"feature\": \"default\""));
+    assert!(stdout.contains("Default features enable 'default-tls'"));
+}
+
+#[test]
+fn disabled_default_features_do_not_emit_opt_out_suggestion() {
+    let binary = env!("CARGO_BIN_EXE_cargo-feature-lens");
+    let output = Command::new(binary)
+        .args([
+            "--manifest-path",
+            "tests/fixtures/default-log-disabled",
+            "--crate",
+            "log",
+        ])
+        .output()
+        .expect("failed to run cargo-feature-lens");
+
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(!stdout.contains("DefaultFeature"));
+    assert!(!stdout.contains("Default features pull in no dependencies"));
+}
+
+#[test]
+fn check_mode_fails_on_info_default_feature_threshold() {
+    let binary = env!("CARGO_BIN_EXE_cargo-feature-lens");
+    let output = Command::new(binary)
+        .args([
+            "--manifest-path",
+            "tests/fixtures/default-log-active",
+            "--crate",
+            "log",
+            "--check",
+            "--fail-on",
+            "info",
+        ])
+        .output()
+        .expect("failed to run cargo-feature-lens");
+
+    assert!(!output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("ℹ DefaultFeature"));
+}
+
+#[test]
+fn check_mode_passes_when_default_feature_threshold_is_warning() {
+    let binary = env!("CARGO_BIN_EXE_cargo-feature-lens");
+    let output = Command::new(binary)
+        .args([
+            "--manifest-path",
+            "tests/fixtures/default-log-active",
+            "--crate",
+            "log",
+            "--check",
+            "--fail-on",
+            "warning",
+        ])
+        .output()
+        .expect("failed to run cargo-feature-lens");
+
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}

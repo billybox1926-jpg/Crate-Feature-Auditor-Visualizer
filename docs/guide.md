@@ -100,12 +100,15 @@ Bloat findings are also loaded from `suggestions.json`. They highlight optional 
 
 ### DefaultFeature
 
-Default-feature findings come from the `default_features.suggest_opt_out` rules in `suggestions.json`. They flag crates whose `default` feature is often worth reviewing, especially in no-std or TLS-backend-sensitive projects.
+Default-feature findings come from the `default_features.suggest_opt_out` rules in `docs/suggestions.json`. They are advisory suggestions to review whether a dependency should opt out of default features; they are not proof that default features are always wrong or that the current configuration is broken.
+
+The rule is evaluated against Cargo's resolved feature graph from `cargo metadata`, not by guessing from raw `Cargo.toml` text. The current heuristic emits a finding when a matching crate is present and the resolved active features include `default`, which indicates default-feature behavior is active for that crate. The finding uses the reason configured in `docs/suggestions.json` and defaults to `info` severity when a rule does not specify a severity.
 
 Common fixes:
 
-- Disable the feature if your code does not need it.
-- Replace a broad feature with a narrower one.
+- Keep defaults enabled when they match the project requirements.
+- Disable defaults with `default-features = false` if your code does not need them.
+- Add back only the narrower features you need, such as a specific TLS backend.
 - Measure before and after with compile-time and binary-size tools when the tradeoff is unclear.
 
 ## Example feature-trimming workflow

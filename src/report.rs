@@ -1,4 +1,4 @@
-use crate::analysis::{Finding, FindingKind};
+use crate::analysis::{Finding, FindingKind, Severity};
 use crate::resolver::{FeatureGraph, FeatureNode};
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
@@ -14,6 +14,7 @@ pub struct ReportOptions {
     pub only_unused: bool,
     pub only_bloat: bool,
     pub crate_filter: Option<String>,
+    pub min_severity: Option<Severity>,
 }
 
 pub fn render(
@@ -48,6 +49,12 @@ fn filter_findings<'a>(findings: &'a [Finding], options: &ReportOptions) -> Vec<
         .filter(|finding| !options.only_unused || finding.kind == FindingKind::Unused)
         .filter(|finding| !options.only_bloat || finding.kind == FindingKind::Bloat)
         .filter(|finding| crate_matches(&finding.crate_name, options.crate_filter.as_deref()))
+        .filter(|finding| {
+            options
+                .min_severity
+                .map(|minimum| finding.severity >= minimum)
+                .unwrap_or(true)
+        })
         .collect()
 }
 
@@ -73,6 +80,11 @@ fn render_terminal(
 
     for node in visible_nodes {
         output.push_str(&format!("┌─ {} ({})\n", node.name, node.version));
+        output.push_str(&format!(
+            "│  dependencies: {} direct, {} optional\n",
+            node.dependencies.len(),
+            node.optional_dependencies.len()
+        ));
         if node.active_features.is_empty() {
             output.push_str("│  active features: <none>\n");
         } else {
@@ -95,6 +107,20 @@ fn render_terminal(
                 finding.kind,
                 finding.message
             ));
+            if let Some(feature) = &finding.feature {
+                if let Some(sources) = node.feature_sources.get(feature) {
+                    let requesters = sources
+                        .iter()
+                        .map(|source| source.requested_by.as_str())
+                        .collect::<std::collections::BTreeSet<_>>()
+                        .into_iter()
+                        .collect::<Vec<_>>()
+                        .join(", ");
+                    if !requesters.is_empty() {
+                        output.push_str(&format!("│    requested by: {requesters}\n"));
+                    }
+                }
+            }
         }
         output.push_str("│\n");
     }
@@ -195,6 +221,68 @@ fn render_json(graph: &FeatureGraph, findings: &[&Finding], crate_filter: Option
             output.push_str(&format!("\"{}\"", json_escape(feature)));
         }
         output.push_str("],\n");
+        output.push_str("      \"dependencies\": [");
+        for (dependency_index, dependency) in node.dependencies.iter().enumerate() {
+            if dependency_index > 0 {
+                output.push_str(", ");
+            }
+            output.push_str(&format!("\"{}\"", json_escape(dependency)));
+        }
+        output.push_str("],\n");
+        output.push_str("      \"optional_dependencies\": [");
+        for (dependency_index, dependency) in node.optional_dependencies.iter().enumerate() {
+            if dependency_index > 0 {
+                output.push_str(", ");
+            }
+            output.push_str(&format!("\"{}\"", json_escape(dependency)));
+        }
+        output.push_str("],\n");
+        output.push_str("      \"dependency_features\": {");
+        for (dep_index, (dependency, features)) in node.dependency_features.iter().enumerate() {
+            if dep_index > 0 {
+                output.push(',');
+            }
+            output.push_str(&format!("\n        \"{}\": [", json_escape(dependency)));
+            for (feature_index, feature) in features.iter().enumerate() {
+                if feature_index > 0 {
+                    output.push_str(", ");
+                }
+                output.push_str(&format!("\"{}\"", json_escape(feature)));
+            }
+            output.push(']');
+        }
+        if !node.dependency_features.is_empty() {
+            output.push_str("\n      ");
+        }
+        output.push_str("},\n");
+        output.push_str("      \"feature_sources\": {");
+        for (feature_index, (feature, sources)) in node.feature_sources.iter().enumerate() {
+            if feature_index > 0 {
+                output.push(',');
+            }
+            output.push_str(&format!("\n        \"{}\": [", json_escape(feature)));
+            for (source_index, source) in sources.iter().enumerate() {
+                if source_index > 0 {
+                    output.push_str(", ");
+                }
+                output.push_str(&format!(
+                    "{{\"requested_by\": \"{}\", \"path\": [",
+                    json_escape(&source.requested_by)
+                ));
+                for (path_index, item) in source.path.iter().enumerate() {
+                    if path_index > 0 {
+                        output.push_str(", ");
+                    }
+                    output.push_str(&format!("\"{}\"", json_escape(item)));
+                }
+                output.push_str("]}");
+            }
+            output.push(']');
+        }
+        if !node.feature_sources.is_empty() {
+            output.push_str("\n      ");
+        }
+        output.push_str("},\n");
         output.push_str("      \"findings\": [");
         let node_findings = findings
             .iter()
@@ -287,6 +375,7 @@ mod tests {
                 only_unused: false,
                 only_bloat: false,
                 crate_filter: None,
+                min_severity: None,
             },
         )
         .unwrap();
@@ -322,6 +411,7 @@ mod tests {
                 only_unused: false,
                 only_bloat: false,
                 crate_filter: None,
+                min_severity: None,
             },
         )
         .unwrap();

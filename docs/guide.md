@@ -49,6 +49,15 @@ cargo feature-lens --unused
 
 # Show only bloat findings from suggestions.json.
 cargo feature-lens --bloat
+
+# Show only warning and error findings in the report.
+cargo feature-lens --min-severity warning
+
+# Fail CI when warning-or-higher findings are present.
+cargo feature-lens --check --fail-on warning
+
+# Analyze a crates.io crate through a temporary local probe manifest.
+cargo feature-lens --remote --crate tokio --crate-version 1
 ```
 
 Filters apply to both the rendered crate list and the findings included in each report.
@@ -87,7 +96,11 @@ Common fixes:
 
 ### Bloat
 
-Bloat findings are also loaded from `suggestions.json`. They highlight optional features that commonly pull in large or duplicate dependency trees.
+Bloat findings are also loaded from `suggestions.json`. They highlight optional features that commonly pull in large or duplicate dependency trees. When the rule lists `pulls_in`, the report includes those crate names so you can quickly inspect whether they are already present elsewhere.
+
+### DefaultFeature
+
+Default-feature findings come from the `default_features.suggest_opt_out` rules in `suggestions.json`. They flag crates whose `default` feature is often worth reviewing, especially in no-std or TLS-backend-sensitive projects.
 
 Common fixes:
 
@@ -129,6 +142,9 @@ The JSON report includes:
 - `total_active_features`
 - `crates[]`
 - per-crate `active_features[]`
+- per-crate `dependencies[]` and `optional_dependencies[]`
+- per-crate `dependency_features` requested from dependencies
+- per-crate `feature_sources` showing who requested each active feature
 - per-crate `findings[]` with `kind`, `severity`, `feature`, and `message`
 
 This makes it suitable for custom CI summaries or dashboards even before dedicated CI annotations are implemented.

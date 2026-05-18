@@ -21,7 +21,7 @@ Rust 1.70 or newer is required.
 - `src/analysis/` — independent analysis passes.
 - `src/report.rs` — terminal, Markdown, and JSON report rendering.
 - `tests/fixtures/` — small Cargo workspaces used by integration tests.
-- `suggestions.json` — optional conflict and bloat rule database.
+- `docs/suggestions.json` — optional conflict and bloat rule database (canonical path updated from root `suggestions.json`).
 
 See `docs/architecture.md` for more detail.
 

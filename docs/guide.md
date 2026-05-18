@@ -62,6 +62,10 @@ cargo feature-lens --remote --crate tokio --crate-version 1
 
 Filters apply to both the rendered crate list and the findings included in each report. In remote mode, `--crate` names the crates.io package to resolve instead of narrowing the report; the rendered report includes that crate and its reachable dependency graph, with the temporary probe package removed.
 
+## Scanning the finding summary
+
+Each report includes a compact finding summary near the top. It shows the total visible findings, counts by severity (`info`, `warning`, and `error`), and nonzero counts by finding kind. The summary uses the same filters as the rest of the report, so it is a quick triage aid for the currently visible findings rather than a replacement for reading the individual crate entries.
+
 ## Interpreting findings
 
 ### Unused
@@ -143,6 +147,7 @@ The JSON report includes:
 
 - `crate_count`
 - `total_active_features`
+- `finding_summary` with visible finding totals, severity counts, and kind counts
 - `crates[]`
 - per-crate `active_features[]`
 - per-crate `dependencies[]` and `optional_dependencies[]`

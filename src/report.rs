@@ -1,6 +1,15 @@
 use crate::analysis::{Finding, FindingKind, Severity};
 use crate::resolver::{FeatureGraph, FeatureNode};
 
+const SEVERITY_ORDER: [Severity; 3] = [Severity::Info, Severity::Warning, Severity::Error];
+const KIND_ORDER: [FindingKind; 5] = [
+    FindingKind::Unused,
+    FindingKind::Conflict,
+    FindingKind::Duplicate,
+    FindingKind::Bloat,
+    FindingKind::DefaultFeature,
+];
+
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum OutputFormat {
     Terminal,
@@ -68,6 +77,7 @@ fn render_terminal(
         .iter()
         .map(|node| node.active_features.len())
         .sum();
+    let summary = summarize_findings(findings);
     let mut output = String::new();
 
     output.push_str("Feature Footprint Report\n");
@@ -76,7 +86,9 @@ fn render_terminal(
         "✓ {total_features} total features active across {} crates\n",
         visible_nodes.len()
     ));
-    output.push_str(&format!("⚠ {} findings detected\n\n", findings.len()));
+    output.push_str(&format!("⚠ {} findings detected\n", findings.len()));
+    output.push_str(&render_terminal_summary(&summary));
+    output.push('\n');
 
     for node in visible_nodes {
         output.push_str(&format!("┌─ {} ({})\n", node.name, node.version));
@@ -134,10 +146,13 @@ fn render_markdown(
     crate_filter: Option<&str>,
 ) -> String {
     let visible_nodes = visible_nodes(graph, crate_filter);
+    let summary = summarize_findings(findings);
     let mut output = String::new();
 
     output.push_str("# Feature Footprint Report\n\n");
     output.push_str(&format!("Analyzed **{}** crates.\n\n", visible_nodes.len()));
+    output.push_str(&render_markdown_summary(&summary));
+    output.push('\n');
     output.push_str("| Crate | Version | Active Features | Findings |\n");
     output.push_str("|---|---:|---|---|\n");
 
@@ -185,12 +200,14 @@ fn render_json(graph: &FeatureGraph, findings: &[&Finding], crate_filter: Option
         .iter()
         .map(|node| node.active_features.len())
         .sum();
+    let summary = summarize_findings(findings);
     let mut output = String::new();
 
     output.push_str("{\n");
     output.push_str(&format!("  \"crate_count\": {},\n", visible_nodes.len()));
     output.push_str(&format!("  \"total_active_features\": {total_features},\n"));
-    output.push_str("  \"crates\": [\n");
+    output.push_str(&render_json_summary(&summary));
+    output.push_str(",\n  \"crates\": [\n");
 
     for (index, node) in visible_nodes.iter().enumerate() {
         if index > 0 {
@@ -319,6 +336,129 @@ fn render_json(graph: &FeatureGraph, findings: &[&Finding], crate_filter: Option
     output
 }
 
+#[derive(Debug, Clone, Eq, PartialEq)]
+struct FindingSummary {
+    total: usize,
+    by_severity: [(Severity, usize); 3],
+    by_kind: Vec<(FindingKind, usize)>,
+}
+
+fn summarize_findings(findings: &[&Finding]) -> FindingSummary {
+    let by_severity = SEVERITY_ORDER.map(|severity| {
+        (
+            severity,
+            findings
+                .iter()
+                .filter(|finding| finding.severity == severity)
+                .count(),
+        )
+    });
+    let by_kind = KIND_ORDER
+        .into_iter()
+        .filter_map(|kind| {
+            let count = findings
+                .iter()
+                .filter(|finding| finding.kind == kind)
+                .count();
+            (count > 0).then_some((kind, count))
+        })
+        .collect();
+
+    FindingSummary {
+        total: findings.len(),
+        by_severity,
+        by_kind,
+    }
+}
+
+fn render_terminal_summary(summary: &FindingSummary) -> String {
+    let mut output = String::new();
+    output.push_str(&format!(
+        "Finding summary: {} visible findings\n",
+        summary.total
+    ));
+    output.push_str(&format!(
+        "  severity: {}\n",
+        summary
+            .by_severity
+            .iter()
+            .map(|(severity, count)| format!("{} {count}", severity.as_str()))
+            .collect::<Vec<_>>()
+            .join(", ")
+    ));
+    if !summary.by_kind.is_empty() {
+        output.push_str(&format!(
+            "  kind: {}\n",
+            summary
+                .by_kind
+                .iter()
+                .map(|(kind, count)| format!("{kind:?} {count}"))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ));
+    }
+    output
+}
+
+fn render_markdown_summary(summary: &FindingSummary) -> String {
+    let mut output = String::new();
+    output.push_str("## Finding Summary\n\n");
+    output.push_str(&format!(
+        "- Total visible findings: **{}**\n",
+        summary.total
+    ));
+    output.push_str(&format!(
+        "- By severity: {}\n",
+        summary
+            .by_severity
+            .iter()
+            .map(|(severity, count)| format!("{} {count}", severity.as_str()))
+            .collect::<Vec<_>>()
+            .join(", ")
+    ));
+    if summary.by_kind.is_empty() {
+        output.push_str("- By kind: none\n\n");
+    } else {
+        output.push_str(&format!(
+            "- By kind: {}\n\n",
+            summary
+                .by_kind
+                .iter()
+                .map(|(kind, count)| format!("`{kind:?}` {count}"))
+                .collect::<Vec<_>>()
+                .join(", ")
+        ));
+    }
+    output
+}
+
+fn render_json_summary(summary: &FindingSummary) -> String {
+    let mut output = String::new();
+    output.push_str("  \"finding_summary\": {\n");
+    output.push_str(&format!("    \"total\": {},\n", summary.total));
+    output.push_str("    \"by_severity\": {");
+    for (index, (severity, count)) in summary.by_severity.iter().enumerate() {
+        if index > 0 {
+            output.push(',');
+        }
+        output.push_str(&format!("\n      \"{}\": {count}", severity.as_str()));
+    }
+    output.push_str("\n    },\n");
+    output.push_str("    \"by_kind\": {");
+    for (index, (kind, count)) in summary.by_kind.iter().enumerate() {
+        if index > 0 {
+            output.push(',');
+        }
+        output.push_str(&format!("\n      \"{kind:?}\": {count}"));
+    }
+    if !summary.by_kind.is_empty() {
+        output.push('\n');
+        output.push_str("    ");
+    }
+    output.push_str("}\n  }");
+    output
+}
+
 fn json_escape(value: &str) -> String {
     let mut escaped = String::new();
     for ch in value.chars() {
@@ -381,7 +521,69 @@ mod tests {
         .unwrap();
 
         assert!(rendered.contains("\"crate_count\": 1"));
+        assert!(rendered.contains("\"finding_summary\""));
+        assert!(rendered.contains("\"total\": 0"));
         assert!(rendered.contains("\"name\": \"demo\""));
+    }
+
+    #[test]
+    fn summarizes_mixed_findings_in_deterministic_order() {
+        let findings = [
+            finding(FindingKind::Duplicate, Severity::Warning, "demo"),
+            finding(FindingKind::Conflict, Severity::Error, "demo"),
+            finding(FindingKind::DefaultFeature, Severity::Info, "helper"),
+            finding(FindingKind::Duplicate, Severity::Warning, "helper"),
+        ];
+        let finding_refs = findings.iter().collect::<Vec<_>>();
+
+        let summary = summarize_findings(&finding_refs);
+
+        assert_eq!(summary.total, 4);
+        assert_eq!(
+            summary.by_severity,
+            [
+                (Severity::Info, 1),
+                (Severity::Warning, 2),
+                (Severity::Error, 1),
+            ]
+        );
+        assert_eq!(
+            summary.by_kind,
+            vec![
+                (FindingKind::Conflict, 1),
+                (FindingKind::Duplicate, 2),
+                (FindingKind::DefaultFeature, 1),
+            ]
+        );
+    }
+
+    #[test]
+    fn summary_respects_minimum_severity_filter() {
+        let findings = vec![
+            finding(FindingKind::DefaultFeature, Severity::Info, "demo"),
+            finding(FindingKind::Duplicate, Severity::Warning, "demo"),
+        ];
+        let options = ReportOptions {
+            format: OutputFormat::Terminal,
+            only_unused: false,
+            only_bloat: false,
+            crate_filter: None,
+            min_severity: Some(Severity::Warning),
+        };
+        let filtered = filter_findings(&findings, &options);
+
+        let summary = summarize_findings(&filtered);
+
+        assert_eq!(summary.total, 1);
+        assert_eq!(
+            summary.by_severity,
+            [
+                (Severity::Info, 0),
+                (Severity::Warning, 1),
+                (Severity::Error, 0),
+            ]
+        );
+        assert_eq!(summary.by_kind, vec![(FindingKind::Duplicate, 1)]);
     }
 
     #[test]
@@ -417,6 +619,18 @@ mod tests {
         .unwrap();
 
         assert!(rendered.contains("# Feature Footprint Report"));
+        assert!(rendered.contains("## Finding Summary"));
+        assert!(rendered.contains("- By kind: `Duplicate` 1"));
         assert!(rendered.contains("demo"));
+    }
+
+    fn finding(kind: FindingKind, severity: Severity, crate_name: &str) -> Finding {
+        Finding {
+            crate_name: crate_name.to_string(),
+            feature: Some("default".to_string()),
+            kind,
+            severity,
+            message: format!("{kind:?} finding"),
+        }
     }
 }

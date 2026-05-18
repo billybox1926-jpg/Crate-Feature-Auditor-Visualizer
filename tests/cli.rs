@@ -45,6 +45,9 @@ fn binary_can_render_json_for_fixture() {
     );
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("\"crate_count\""));
+    assert!(stdout.contains("\"finding_summary\""));
+    assert!(stdout.contains("\"by_severity\""));
+    assert!(stdout.contains("\"by_kind\""));
     assert!(stdout.contains("\"name\": \"feature-lens-fixture\""));
     assert!(stdout.trim_start().starts_with('{'));
 }
@@ -113,6 +116,9 @@ fn terminal_report_includes_duplicate_feature_lineage() {
         String::from_utf8_lossy(&output.stderr)
     );
     let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("Finding summary: 2 visible findings"));
+    assert!(stdout.contains("severity: info 0, warning 2, error 0"));
+    assert!(stdout.contains("kind: Unused 1, Duplicate 1"));
     assert!(stdout.contains("┌─ fixture-leaf (0.1.0)"));
     assert!(stdout.contains("⚠ Duplicate"));
     assert!(stdout.contains(
@@ -141,6 +147,14 @@ fn markdown_report_includes_duplicate_feature_lineage() {
         String::from_utf8_lossy(&output.stderr)
     );
     let stdout = String::from_utf8_lossy(&output.stdout);
+    let summary_position = stdout.find("## Finding Summary").unwrap();
+    let table_position = stdout
+        .find("| Crate | Version | Active Features | Findings |")
+        .unwrap();
+    assert!(summary_position < table_position);
+    assert!(stdout.contains("- Total visible findings: **2**"));
+    assert!(stdout.contains("- By severity: info 0, warning 2, error 0"));
+    assert!(stdout.contains("- By kind: `Unused` 1, `Duplicate` 1"));
     assert!(stdout.contains("| fixture-leaf | 0.1.0 |"));
     assert!(stdout.contains("⚠ Duplicate: feature `shared` is requested through multiple lineages: mid-a -> fixture-leaf -> shared; mid-b -> fixture-leaf -> shared"));
 }
@@ -166,11 +180,43 @@ fn json_report_includes_duplicate_feature_lineage() {
         String::from_utf8_lossy(&output.stderr)
     );
     let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("\"finding_summary\""));
+    assert!(stdout.contains("\"total\": 2"));
+    assert!(stdout.contains("\"warning\": 2"));
+    assert!(stdout.contains("\"Unused\": 1"));
+    assert!(stdout.contains("\"Duplicate\": 1"));
     assert!(stdout.contains("\"name\": \"fixture-leaf\""));
     assert!(stdout.contains("\"kind\": \"Duplicate\""));
     assert!(stdout.contains("\"severity\": \"Warning\""));
     assert!(stdout.contains("\"feature\": \"shared\""));
     assert!(stdout.contains("feature `shared` is requested through multiple lineages: mid-a -> fixture-leaf -> shared; mid-b -> fixture-leaf -> shared"));
+}
+
+#[test]
+fn terminal_summary_respects_min_severity_filter() {
+    let binary = env!("CARGO_BIN_EXE_cargo-feature-lens");
+    let output = Command::new(binary)
+        .args([
+            "--manifest-path",
+            "tests/fixtures/default-log-active",
+            "--crate",
+            "log",
+            "--min-severity",
+            "warning",
+        ])
+        .output()
+        .expect("failed to run cargo-feature-lens");
+
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("Finding summary: 0 visible findings"));
+    assert!(stdout.contains("severity: info 0, warning 0, error 0"));
+    assert!(!stdout.contains("kind: DefaultFeature"));
+    assert!(!stdout.contains("ℹ DefaultFeature"));
 }
 
 #[test]

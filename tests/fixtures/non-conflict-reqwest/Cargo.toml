@@ -1,0 +1,7 @@
+[package]
+name = "non-conflict-reqwest-fixture"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+reqwest = { path = "reqwest", default-features = false, features = ["native-tls"] }

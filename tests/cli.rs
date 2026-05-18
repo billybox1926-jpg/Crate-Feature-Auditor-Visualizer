@@ -92,3 +92,122 @@ fn check_mode_passes_when_threshold_is_higher_than_findings() {
         String::from_utf8_lossy(&output.stderr)
     );
 }
+
+#[test]
+fn terminal_report_includes_reqwest_conflict_finding() {
+    let binary = env!("CARGO_BIN_EXE_cargo-feature-lens");
+    let output = Command::new(binary)
+        .args([
+            "--manifest-path",
+            "tests/fixtures/conflict-reqwest",
+            "--crate",
+            "reqwest",
+        ])
+        .output()
+        .expect("failed to run cargo-feature-lens");
+
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("✖ Conflict"));
+    assert!(stdout.contains("TLS backends are mutually exclusive"));
+}
+
+#[test]
+fn markdown_report_includes_reqwest_conflict_finding() {
+    let binary = env!("CARGO_BIN_EXE_cargo-feature-lens");
+    let output = Command::new(binary)
+        .args([
+            "--manifest-path",
+            "tests/fixtures/conflict-reqwest",
+            "--format",
+            "markdown",
+            "--crate",
+            "reqwest",
+        ])
+        .output()
+        .expect("failed to run cargo-feature-lens");
+
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("| reqwest |"));
+    assert!(stdout.contains("✖ Conflict: TLS backends are mutually exclusive"));
+}
+
+#[test]
+fn json_report_includes_reqwest_conflict_finding() {
+    let binary = env!("CARGO_BIN_EXE_cargo-feature-lens");
+    let output = Command::new(binary)
+        .args([
+            "--manifest-path",
+            "tests/fixtures/conflict-reqwest",
+            "--format",
+            "json",
+            "--crate",
+            "reqwest",
+        ])
+        .output()
+        .expect("failed to run cargo-feature-lens");
+
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("\"kind\": \"Conflict\""));
+    assert!(stdout.contains("\"severity\": \"Error\""));
+    assert!(stdout.contains("\"feature\": \"native-tls, rustls-tls\""));
+    assert!(stdout.contains("TLS backends are mutually exclusive"));
+}
+
+#[test]
+fn reqwest_non_conflict_fixture_does_not_emit_conflict_finding() {
+    let binary = env!("CARGO_BIN_EXE_cargo-feature-lens");
+    let output = Command::new(binary)
+        .args([
+            "--manifest-path",
+            "tests/fixtures/non-conflict-reqwest",
+            "--crate",
+            "reqwest",
+        ])
+        .output()
+        .expect("failed to run cargo-feature-lens");
+
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(!stdout.contains("Conflict"));
+    assert!(!stdout.contains("TLS backends are mutually exclusive"));
+}
+
+#[test]
+fn check_mode_fails_on_conflict_threshold() {
+    let binary = env!("CARGO_BIN_EXE_cargo-feature-lens");
+    let output = Command::new(binary)
+        .args([
+            "--manifest-path",
+            "tests/fixtures/conflict-reqwest",
+            "--crate",
+            "reqwest",
+            "--check",
+            "--fail-on",
+            "error",
+        ])
+        .output()
+        .expect("failed to run cargo-feature-lens");
+
+    assert!(!output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("✖ Conflict"));
+}

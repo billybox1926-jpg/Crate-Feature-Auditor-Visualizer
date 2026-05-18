@@ -6,6 +6,7 @@ use crate::resolver::FeatureGraph;
 pub mod bloat;
 pub mod conflicts;
 pub mod duplication;
+pub mod source_usage;
 pub mod unused;
 
 /// Shared inputs for independent analysis passes.

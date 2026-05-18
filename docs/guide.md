@@ -78,7 +78,9 @@ Each report includes a compact finding summary near the top. It shows the total 
 
 ### Unused
 
-An unused finding means a feature is active but is not referenced by the package's manifest-level feature expansion, dependency feature requests, or optional dependency names. This is a static manifest heuristic; source-aware `#[cfg(feature = "...")]` inspection is planned.
+An unused finding means a feature is active but is not referenced by manifest-level feature expansion, dependency feature requests, optional dependency names, or first-pass Rust source scanning. Source scanning conservatively looks for literal patterns such as `#[cfg(feature = "foo")]`, nested `any(...)`/`all(...)` feature clauses, and `cfg!(feature = "foo")` in package `src/**/*.rs` (and also in `tests/`, `examples/`, and `benches/` as advisory evidence).
+
+This remains advisory: it does not expand macros, execute/evaluate build scripts, inspect generated code, or prove downstream usage in dependent crates. `cargo metadata` and manifest/resolver data remain the source of truth for which features are active; source scanning only adds extra evidence to reduce obvious false positives.
 
 Common fixes:
 

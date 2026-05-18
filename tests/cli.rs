@@ -692,3 +692,65 @@ fn binary_writes_dot_output_file() {
             && rendered.contains("mid_a_0_1_0\";")
     );
 }
+
+#[test]
+fn source_cfg_usage_suppresses_unused_in_cli_report() {
+    let binary = env!("CARGO_BIN_EXE_cargo-feature-lens");
+    let output = Command::new(binary)
+        .args([
+            "--manifest-path",
+            "tests/fixtures/unused-source-used",
+            "--crate",
+            "unused-source-used",
+        ])
+        .output()
+        .expect("failed to run cargo-feature-lens");
+
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(!stdout.contains("Unused"));
+}
+
+#[test]
+fn unreferenced_active_feature_still_reports_unused_in_cli_and_check_mode() {
+    let binary = env!("CARGO_BIN_EXE_cargo-feature-lens");
+    let output = Command::new(binary)
+        .args([
+            "--manifest-path",
+            "tests/fixtures/duplicate-feature-multiparent",
+            "--crate",
+            "fixture-leaf",
+        ])
+        .output()
+        .expect("failed to run cargo-feature-lens");
+
+    assert!(
+        output.status.success(),
+        "stderr: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("Unused"));
+    assert!(stdout.contains("feature `shared`"));
+
+    let check_output = Command::new(binary)
+        .args([
+            "--manifest-path",
+            "tests/fixtures/duplicate-feature-multiparent",
+            "--crate",
+            "fixture-leaf",
+            "--check",
+            "--fail-on",
+            "warning",
+        ])
+        .output()
+        .expect("failed to run cargo-feature-lens in check mode");
+
+    assert!(!check_output.status.success());
+    let check_stdout = String::from_utf8_lossy(&check_output.stdout);
+    assert!(check_stdout.contains("Unused"));
+}

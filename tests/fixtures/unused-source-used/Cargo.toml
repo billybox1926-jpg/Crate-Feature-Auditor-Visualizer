@@ -1,0 +1,8 @@
+[package]
+name = "unused-source-used"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+default = ["lint_only"]
+lint_only = []

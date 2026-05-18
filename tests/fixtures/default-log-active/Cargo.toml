@@ -1,0 +1,7 @@
+[package]
+name = "default-log-active-fixture"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+log = { path = "log" }

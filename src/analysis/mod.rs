@@ -135,6 +135,10 @@ fn default_features(context: &AnalysisContext<'_>) -> Vec<Finding> {
     let mut findings = Vec::new();
 
     for node in context.graph.sorted_nodes() {
+        // Cargo metadata's resolved feature list is the source of truth here.
+        // For this first advisory rule, treat a resolved `default` feature as
+        // evidence that the crate's default features are active. This stays
+        // deterministic and avoids guessing from raw dependency declarations.
         if !node.active_features.contains("default") {
             continue;
         }
@@ -156,56 +160,120 @@ fn default_features(context: &AnalysisContext<'_>) -> Vec<Finding> {
 
 fn parse_suggestions(raw: &str) -> Suggestions {
     let mut suggestions = Suggestions::default();
-    for object in json_like_objects(raw) {
-        if let Some(crate_name) = field(&object, "crate") {
-            if let Some(features) = array_field(&object, "features") {
-                if let Some(message) = field(&object, "message") {
-                    suggestions.conflicts.push(ConflictRule {
-                        crate_name,
-                        features,
-                        severity: field(&object, "severity")
-                            .as_deref()
-                            .and_then(Severity::parse)
-                            .unwrap_or(Severity::Warning),
-                        message,
-                    });
-                }
-            } else if let Some(feature) = field(&object, "feature") {
-                if let Some(message) = field(&object, "message") {
-                    suggestions.bloat.push(BloatRule {
-                        crate_name,
-                        feature,
-                        pulls_in: array_field(&object, "pulls_in").unwrap_or_default(),
-                        severity: field(&object, "severity")
-                            .as_deref()
-                            .and_then(Severity::parse)
-                            .unwrap_or(Severity::Info),
-                        message,
-                    });
-                }
-            } else if let Some(reason) = field(&object, "reason") {
-                suggestions.default_features.push(DefaultFeatureRule {
-                    crate_name,
-                    severity: field(&object, "severity")
-                        .as_deref()
-                        .and_then(Severity::parse)
-                        .unwrap_or(Severity::Info),
-                    reason,
-                });
-            }
+
+    for object in array_objects(raw, "conflicts") {
+        let Some(crate_name) = field(&object, "crate") else {
+            continue;
+        };
+        let Some(features) = array_field(&object, "features") else {
+            continue;
+        };
+        let Some(message) = field(&object, "message") else {
+            continue;
+        };
+        suggestions.conflicts.push(ConflictRule {
+            crate_name,
+            features,
+            severity: field(&object, "severity")
+                .as_deref()
+                .and_then(Severity::parse)
+                .unwrap_or(Severity::Warning),
+            message,
+        });
+    }
+
+    for object in array_objects(raw, "bloat") {
+        let Some(crate_name) = field(&object, "crate") else {
+            continue;
+        };
+        let Some(feature) = field(&object, "feature") else {
+            continue;
+        };
+        let Some(message) = field(&object, "message") else {
+            continue;
+        };
+        suggestions.bloat.push(BloatRule {
+            crate_name,
+            feature,
+            pulls_in: array_field(&object, "pulls_in").unwrap_or_default(),
+            severity: field(&object, "severity")
+                .as_deref()
+                .and_then(Severity::parse)
+                .unwrap_or(Severity::Info),
+            message,
+        });
+    }
+
+    if let Some(default_features) = object_field(raw, "default_features") {
+        for object in array_objects(&default_features, "suggest_opt_out") {
+            let Some(crate_name) = field(&object, "crate") else {
+                continue;
+            };
+            let Some(reason) = field(&object, "reason") else {
+                continue;
+            };
+            suggestions.default_features.push(DefaultFeatureRule {
+                crate_name,
+                severity: field(&object, "severity")
+                    .as_deref()
+                    .and_then(Severity::parse)
+                    .unwrap_or(Severity::Info),
+                reason,
+            });
         }
     }
+
     suggestions
 }
 
-fn json_like_objects(raw: &str) -> Vec<String> {
+fn object_field(object: &str, key: &str) -> Option<String> {
+    bracketed(value_after_key(object, key)?, '{', '}').map(|(value, _)| value)
+}
+
+fn array_objects(object: &str, key: &str) -> Vec<String> {
+    let Some(array) = raw_array_field(object, key) else {
+        return Vec::new();
+    };
     let mut objects = Vec::new();
+    let mut rest = array.as_str();
+    while let Some(pos) = rest.find('{') {
+        rest = &rest[pos..];
+        if let Some((value, consumed)) = bracketed(rest, '{', '}') {
+            objects.push(value);
+            rest = &rest[consumed..];
+        } else {
+            break;
+        }
+    }
+    objects
+}
+
+fn field(object: &str, key: &str) -> Option<String> {
+    parse_json_string(value_after_key(object, key)?).map(|(value, _)| value)
+}
+
+fn array_field(object: &str, key: &str) -> Option<Vec<String>> {
+    raw_array_field(object, key).map(|array| string_items(&array))
+}
+
+fn raw_array_field(object: &str, key: &str) -> Option<String> {
+    bracketed(value_after_key(object, key)?, '[', ']').map(|(value, _)| value)
+}
+
+fn value_after_key<'a>(object: &'a str, key: &str) -> Option<&'a str> {
+    let key_pattern = format!("\"{key}\"");
+    let start = object.find(&key_pattern)? + key_pattern.len();
+    let tail = object[start..].trim_start();
+    tail.strip_prefix(':')
+}
+
+fn bracketed(input: &str, open: char, close: char) -> Option<(String, usize)> {
+    let start = input.find(open)?;
     let mut depth = 0usize;
-    let mut start = None;
     let mut in_string = false;
     let mut escaped = false;
 
-    for (idx, ch) in raw.char_indices() {
+    for (idx, ch) in input[start..].char_indices() {
         if in_string {
             if escaped {
                 escaped = false;
@@ -218,59 +286,18 @@ fn json_like_objects(raw: &str) -> Vec<String> {
         }
         match ch {
             '"' => in_string = true,
-            '{' => {
-                if depth == 1 {
-                    start = Some(idx);
-                }
-                depth += 1;
-            }
-            '}' => {
+            c if c == open => depth += 1,
+            c if c == close => {
                 depth = depth.saturating_sub(1);
-                if depth == 1 {
-                    if let Some(start) = start.take() {
-                        objects.push(raw[start..=idx].to_string());
-                    }
+                if depth == 0 {
+                    let end = start + idx + ch.len_utf8();
+                    return Some((input[start..end].to_string(), end));
                 }
             }
             _ => {}
         }
     }
-    objects
-}
 
-fn field(object: &str, key: &str) -> Option<String> {
-    let key = format!("\"{key}\"");
-    let start = object.find(&key)? + key.len();
-    let tail = object[start..].split_once(':')?.1.trim();
-    parse_json_string(tail).map(|(value, _)| value)
-}
-
-fn array_field(object: &str, key: &str) -> Option<Vec<String>> {
-    let key = format!("\"{key}\"");
-    let start = object.find(&key)? + key.len();
-    let tail = object[start..].split_once('[')?.1;
-    let end = find_array_end(tail)?;
-    Some(string_items(&tail[..end]))
-}
-
-fn find_array_end(input: &str) -> Option<usize> {
-    let mut in_string = false;
-    let mut escaped = false;
-    for (idx, ch) in input.char_indices() {
-        if in_string {
-            if escaped {
-                escaped = false;
-            } else if ch == '\\' {
-                escaped = true;
-            } else if ch == '"' {
-                in_string = false;
-            }
-        } else if ch == '"' {
-            in_string = true;
-        } else if ch == ']' {
-            return Some(idx);
-        }
-    }
     None
 }
 
@@ -315,7 +342,10 @@ fn parse_json_string(input: &str) -> Option<(String, usize)> {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeSet;
+
     use super::*;
+    use crate::resolver::{FeatureGraph, FeatureNode};
 
     #[test]
     fn parses_all_suggestion_rule_kinds() {
@@ -323,6 +353,88 @@ mod tests {
 
         assert!(!suggestions.conflicts.is_empty());
         assert!(!suggestions.bloat.is_empty());
-        assert!(!suggestions.default_features.is_empty());
+        assert_eq!(suggestions.default_features.len(), 2);
+        assert!(suggestions.default_features.iter().any(|rule| {
+            rule.crate_name == "log"
+                && rule.severity == Severity::Info
+                && rule.reason.contains("no-std logger")
+        }));
+        assert!(suggestions
+            .default_features
+            .iter()
+            .any(|rule| rule.crate_name == "reqwest"));
+    }
+
+    #[test]
+    fn ignores_default_feature_like_objects_outside_suggest_opt_out() {
+        let suggestions = parse_suggestions(
+            r#"{
+                "conflicts": [],
+                "bloat": [
+                  {"crate": "demo", "feature": "full", "reason": "not a default rule", "message": "heavy"}
+                ],
+                "default_features": {"suggest_opt_out": []}
+            }"#,
+        );
+
+        assert!(suggestions.default_features.is_empty());
+    }
+
+    #[test]
+    fn emits_default_feature_finding_when_default_is_active() {
+        let mut graph = FeatureGraph::default();
+        graph.nodes.insert(
+            "log 0.4.0".to_string(),
+            FeatureNode {
+                package_id: "log 0.4.0".to_string(),
+                name: "log".to_string(),
+                version: "0.4.0".to_string(),
+                active_features: BTreeSet::from(["default".to_string(), "std".to_string()]),
+                ..FeatureNode::default()
+            },
+        );
+        let suggestions = Suggestions {
+            default_features: vec![DefaultFeatureRule {
+                crate_name: "log".to_string(),
+                severity: Severity::Info,
+                reason: "review log defaults".to_string(),
+            }],
+            ..Suggestions::default()
+        };
+
+        let findings = default_features(&AnalysisContext::new(&graph, &suggestions));
+
+        assert_eq!(findings.len(), 1);
+        assert_eq!(findings[0].kind, FindingKind::DefaultFeature);
+        assert_eq!(findings[0].severity, Severity::Info);
+        assert_eq!(findings[0].feature.as_deref(), Some("default"));
+        assert_eq!(findings[0].message, "review log defaults");
+    }
+
+    #[test]
+    fn skips_default_feature_finding_when_default_is_disabled() {
+        let mut graph = FeatureGraph::default();
+        graph.nodes.insert(
+            "log 0.4.0".to_string(),
+            FeatureNode {
+                package_id: "log 0.4.0".to_string(),
+                name: "log".to_string(),
+                version: "0.4.0".to_string(),
+                active_features: BTreeSet::from(["std".to_string()]),
+                ..FeatureNode::default()
+            },
+        );
+        let suggestions = Suggestions {
+            default_features: vec![DefaultFeatureRule {
+                crate_name: "log".to_string(),
+                severity: Severity::Info,
+                reason: "review log defaults".to_string(),
+            }],
+            ..Suggestions::default()
+        };
+
+        let findings = default_features(&AnalysisContext::new(&graph, &suggestions));
+
+        assert!(findings.is_empty());
     }
 }

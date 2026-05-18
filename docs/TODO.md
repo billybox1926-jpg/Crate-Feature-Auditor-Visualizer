@@ -63,8 +63,8 @@ This is the working task list for `cargo-feature-lens`. Items are roughly ordere
 
 ## Integration & CI
 
-- [x] **Pre‑commit / CI mode**
-  - [x] Add `--check` flag that exits with non‑zero on unused or conflicting features (suitable for CI).
+- [ ] **Pre‑commit / CI mode**
+  - [ ] Add `--check` flag that exits with non‑zero on unused or conflicting features (suitable for CI).
   - [ ] Provide severity thresholds (e.g., `--deny warning` treats warnings as errors).
 
 - [ ] **cargo-deny integration**

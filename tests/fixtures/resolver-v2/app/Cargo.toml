@@ -1,0 +1,19 @@
+[package]
+name = "resolver-app"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+default = ["use-mid"]
+use-mid = ["mid/propagated"]
+leaf-extra = ["leaf/direct-extra"]
+
+[dependencies]
+mid = { path = "../crates/mid", default-features = false, features = ["direct-mid"] }
+leaf = { path = "../crates/leaf", default-features = false, features = ["direct-leaf"] }
+
+[build-dependencies]
+helper = { path = "../crates/helper", default-features = false, features = ["build-only"] }
+
+[dev-dependencies]
+leaf = { path = "../crates/leaf", default-features = false, features = ["dev-only"] }

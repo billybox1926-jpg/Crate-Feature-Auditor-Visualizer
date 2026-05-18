@@ -1,0 +1,7 @@
+[workspace]
+resolver = "2"
+members = ["app", "tool", "crates/mid", "crates/leaf", "crates/helper"]
+default-members = ["app", "tool"]
+
+[workspace.dependencies]
+leaf = { path = "crates/leaf", default-features = false, features = ["workspace-base"] }

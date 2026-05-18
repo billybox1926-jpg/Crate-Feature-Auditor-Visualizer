@@ -1,0 +1,12 @@
+[package]
+name = "mid"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+default = []
+direct-mid = ["leaf/mid-forward"]
+propagated = ["leaf/propagated"]
+
+[dependencies]
+leaf = { path = "../leaf", default-features = false }

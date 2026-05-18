@@ -25,6 +25,7 @@ pub struct ResolveNode {
     pub id: String,
     pub features: Vec<String>,
     pub dependencies: Vec<String>,
+    pub dependency_names: BTreeMap<String, String>,
 }
 
 /// Load Cargo's resolved package graph without compiling the target workspace.
@@ -58,19 +59,25 @@ fn parse_metadata(raw: &str) -> Result<Metadata, Box<dyn std::error::Error>> {
     let packages = array_objects(raw, "packages")
         .into_iter()
         .map(|object| {
-            let dependency_features = array_objects(&object, "dependencies")
-                .into_iter()
-                .filter_map(|dependency| {
-                    let name = string_field(&dependency, "rename")
-                        .or_else(|| string_field(&dependency, "name"))?;
-                    let features = string_array_field(&dependency, "features");
-                    if features.is_empty() {
-                        None
-                    } else {
-                        Some((name, features))
-                    }
-                })
-                .collect::<BTreeMap<_, _>>();
+            let mut dependency_features = BTreeMap::<String, Vec<String>>::new();
+            for dependency in array_objects(&object, "dependencies") {
+                let Some(name) = string_field(&dependency, "rename")
+                    .or_else(|| string_field(&dependency, "name"))
+                else {
+                    continue;
+                };
+                let features = string_array_field(&dependency, "features");
+                if !features.is_empty() {
+                    dependency_features
+                        .entry(name)
+                        .or_default()
+                        .extend(features);
+                }
+            }
+            for features in dependency_features.values_mut() {
+                features.sort();
+                features.dedup();
+            }
 
             let optional_dependencies = array_objects(&object, "dependencies")
                 .into_iter()
@@ -104,6 +111,7 @@ fn parse_metadata(raw: &str) -> Result<Metadata, Box<dyn std::error::Error>> {
             id: string_field(&object, "id").unwrap_or_default(),
             features: string_array_field(&object, "features"),
             dependencies: resolve_dependencies(&object),
+            dependency_names: resolve_dependency_names(&object),
         })
         .filter(|node| !node.id.is_empty())
         .collect();
@@ -116,14 +124,26 @@ fn parse_metadata(raw: &str) -> Result<Metadata, Box<dyn std::error::Error>> {
 }
 
 fn resolve_dependencies(object: &str) -> Vec<String> {
-    let deps = string_array_field(object, "dependencies");
-    if !deps.is_empty() {
-        return deps;
+    let mut deps = string_array_field(object, "dependencies");
+    if deps.is_empty() {
+        deps = array_objects(object, "deps")
+            .into_iter()
+            .filter_map(|dep| string_field(&dep, "pkg"))
+            .collect();
     }
+    deps.sort();
+    deps.dedup();
+    deps
+}
 
+fn resolve_dependency_names(object: &str) -> BTreeMap<String, String> {
     array_objects(object, "deps")
         .into_iter()
-        .filter_map(|dep| string_field(&dep, "pkg"))
+        .filter_map(|dep| {
+            let pkg = string_field(&dep, "pkg")?;
+            let name = string_field(&dep, "name")?;
+            Some((name, pkg))
+        })
         .collect()
 }
 
@@ -292,7 +312,7 @@ mod tests {
             r#"{
               "packages":[{"id":"demo 0.1.0","name":"demo","version":"0.1.0","manifest_path":"/tmp/Cargo.toml","features":{"default":["std"],"std":[]},"dependencies":[{"name":"serde","rename":null,"optional":true,"features":["derive"]}]}],
               "workspace_members":["demo 0.1.0"],
-              "resolve":{"nodes":[{"id":"demo 0.1.0","features":["default","std"],"deps":[{"pkg":"serde 1.0.0"}]}]}
+              "resolve":{"nodes":[{"id":"demo 0.1.0","features":["default","std"],"deps":[{"name":"serde","pkg":"serde 1.0.0"}]}]}
             }"#,
         )
         .unwrap();
@@ -304,5 +324,9 @@ mod tests {
             vec!["derive"]
         );
         assert_eq!(metadata.resolve_nodes[0].dependencies, vec!["serde 1.0.0"]);
+        assert_eq!(
+            metadata.resolve_nodes[0].dependency_names["serde"],
+            "serde 1.0.0"
+        );
     }
 }

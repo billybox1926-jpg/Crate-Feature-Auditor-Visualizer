@@ -1,27 +1,62 @@
-# Contributing
+# Contributing to cargo-feature-lens
 
-Thanks for your interest in `cargo-feature-lens`. This document covers the small handful of conventions that are easy to miss.
+Thanks for helping improve `cargo-feature-lens`! This project aims to make Cargo feature behavior easier to understand without compiling a workspace.
 
-## Development
+## Getting started
 
 ```bash
-cargo fmt --check
-cargo clippy --all-targets --all-features -- -D warnings
+git clone https://github.com/billybox1926-jpg/Crate-Feature-Auditor-Visualizer.git
+cd Crate-Feature-Auditor-Visualizer
 cargo test
-cargo build
 ```
 
-The CI workflow runs each of these on every push and pull request.
+Rust 1.70 or newer is required.
 
-## No hidden or bidirectional Unicode characters
+## Project layout
 
-CI rejects source files that contain characters from any of these ranges:
+- `src/main.rs` — CLI parsing, cargo subcommand handling, and top-level orchestration.
+- `src/metadata.rs` — `cargo metadata` invocation and lightweight metadata parsing.
+- `src/manifest.rs` — best-effort `Cargo.toml` parsing for feature-related fields.
+- `src/resolver.rs` — feature graph construction and source tracking.
+- `src/analysis/` — independent analysis passes.
+- `src/report.rs` — terminal, Markdown, and JSON report rendering.
+- `tests/fixtures/` — small Cargo workspaces used by integration tests.
+- `suggestions.json` — optional conflict and bloat rule database.
 
-- `U+202A..U+202E` bidirectional embedding/override controls
-- `U+2066..U+2069` bidirectional isolate controls
-- `U+200B..U+200F` zero-width spaces, ZWNJ, ZWJ, LRM, RLM
-- `U+FEFF` byte order mark
+See `docs/architecture.md` for more detail.
 
-These can be used to make code render differently than it compiles, a class of issue sometimes called Trojan Source. Keep source files plain UTF-8 without invisible control characters. If you genuinely need one in a test fixture, isolate it in a non-scanned directory, for example `tests/fixtures/`, so it does not affect the build.
+## Code style
 
-The check is the `unicode-scan` job in `.github/workflows/ci.yml`.
+- Keep the CLI layer thin; prefer reusable logic in library modules.
+- Add or update tests for behavior changes.
+- Prefer deterministic ordering with `BTreeMap`/`BTreeSet` when output stability matters.
+- Avoid panics in production paths; return errors with useful context.
+- Keep report output stable unless the change is intentional and documented.
+
+## Adding an analysis pass
+
+1. Add a new module under `src/analysis/`.
+2. Return `Vec<Finding>` from a focused `analyze(&AnalysisContext)` function.
+3. Wire the pass into `analysis::run_all`.
+4. Add unit tests or fixture-based CLI tests covering the new findings.
+5. Update `README.md`, `TODO.md`, and `docs/guide.md` if users need to understand the new finding kind.
+
+## Adding fixtures
+
+Create a small workspace under `tests/fixtures/<name>/` with its own `Cargo.toml`, source files, and lockfile when needed. Keep fixtures narrow so a failing test points to one behavior.
+
+## Pull request checklist
+
+Before opening a PR, run:
+
+```bash
+cargo fmt
+cargo test
+```
+
+Then confirm:
+
+- [ ] The change is covered by tests or a clear manual check.
+- [ ] User-facing behavior is documented.
+- [ ] `TODO.md` is updated if a tracked task was completed or changed.
+- [ ] New report output is deterministic.

@@ -1,4 +1,5 @@
 use std::process::Command;
+use std::{env, fs, path::PathBuf};
 
 #[test]
 fn binary_can_render_markdown_for_fixture() {
@@ -315,6 +316,86 @@ fn reqwest_non_conflict_fixture_does_not_emit_conflict_finding() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(!stdout.contains("Conflict"));
     assert!(!stdout.contains("TLS backends are mutually exclusive"));
+}
+
+fn write_temp_local_rules(contents: &str) -> PathBuf {
+    let dir = env::temp_dir().join(format!("cargo-feature-lens-test-{}", std::process::id()));
+    let _ = fs::remove_dir_all(&dir);
+    fs::create_dir_all(&dir).expect("create temp dir");
+    fs::write(dir.join("feature-lens.toml"), contents).expect("write local rules");
+    dir
+}
+
+fn fixture_manifest_path() -> String {
+    std::fs::canonicalize("tests/fixtures/basic")
+        .expect("canonicalize fixture")
+        .display()
+        .to_string()
+}
+
+#[test]
+fn local_rules_emit_custom_conflict_in_terminal_markdown_and_json() {
+    let binary = env!("CARGO_BIN_EXE_cargo-feature-lens");
+    let cwd = write_temp_local_rules(
+        r#"
+[[bloat]]
+crate = "feature-lens-fixture"
+feature = "default"
+severity = "warning"
+message = "custom local bloat"
+"#,
+    );
+
+    for format in [None, Some("markdown"), Some("json")] {
+        let manifest = fixture_manifest_path();
+        let mut command = Command::new(binary);
+        command.args([
+            "--manifest-path",
+            &manifest,
+            "--crate",
+            "feature-lens-fixture",
+        ]);
+        if let Some(format) = format {
+            command.args(["--format", format]);
+        }
+        let output = command.current_dir(&cwd).output().expect("run binary");
+        assert!(
+            output.status.success(),
+            "stderr: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        assert!(stdout.contains("custom local bloat"), "{stdout}");
+    }
+}
+
+#[test]
+fn check_mode_fails_on_local_rule_finding() {
+    let binary = env!("CARGO_BIN_EXE_cargo-feature-lens");
+    let cwd = write_temp_local_rules(
+        r#"
+[[bloat]]
+crate = "feature-lens-fixture"
+feature = "default"
+severity = "warning"
+message = "custom local bloat"
+"#,
+    );
+    let output = Command::new(binary)
+        .args(["--manifest-path", &fixture_manifest_path()])
+        .args([
+            "--crate",
+            "feature-lens-fixture",
+            "--check",
+            "--fail-on",
+            "warning",
+        ])
+        .current_dir(&cwd)
+        .output()
+        .expect("run binary");
+    assert!(!output.status.success());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("custom local bloat"));
 }
 
 #[test]

@@ -27,7 +27,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 fn run() -> Result<(), Box<dyn Error>> {
     let cli = Cli::parse(cargo_aware_args())?;
 
-    if cli.crate_filter.is_some() && cli.manifest_path == "." {
+    if cli.crate_filter.is_some() && cli.manifest_path.as_path() == std::path::Path::new(".") {
         return Err(
             "`--crate` currently filters crates from local Cargo metadata; remote crates.io analysis is not implemented yet. Use `--manifest-path Cargo.toml --crate <name>` to filter a local project, or track issue #3 for remote crate analysis."
                 .into(),

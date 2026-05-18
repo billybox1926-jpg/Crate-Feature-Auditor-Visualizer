@@ -60,7 +60,7 @@ cargo feature-lens --check --fail-on warning
 cargo feature-lens --remote --crate tokio --crate-version 1
 ```
 
-Filters apply to both the rendered crate list and the findings included in each report.
+Filters apply to both the rendered crate list and the findings included in each report. In remote mode, `--crate` names the crates.io package to resolve instead of narrowing the report; the rendered report includes that crate and its reachable dependency graph, with the temporary probe package removed.
 
 ## Interpreting findings
 

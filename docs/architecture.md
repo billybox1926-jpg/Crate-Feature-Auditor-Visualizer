@@ -35,13 +35,17 @@ The parser extracts only the package, workspace member, resolve node, feature, a
 - feature-relevant `[workspace.dependencies]` entries inherited with `workspace = true`
 - feature-relevant target-specific dependency sections such as `[target.'cfg(unix)'.dependencies]`
 
-The parser is deliberately small and best-effort. It does not evaluate target `cfg` expressions; target-specific dependency data is folded into the same optional-dependency and dependency-feature maps so reports remain deterministic across platforms. Workspace inheritance is resolved by walking to the nearest ancestor manifest with `[workspace.dependencies]` and merging inherited feature lists with member-local dependency features. Missing package manifests still use an empty fallback manifest so unavailable local files do not abort graph construction. More exact Cargo feature unification remains future resolver work.
+The parser is deliberately small and best-effort. It does not evaluate target `cfg` expressions; target-specific dependency data is folded into the same optional-dependency and dependency-feature maps so reports remain deterministic across platforms. Workspace inheritance is resolved by walking to the nearest ancestor manifest with `[workspace.dependencies]` and merging inherited feature lists with member-local dependency features. Missing package manifests still use an empty fallback manifest so unavailable local files do not abort graph construction.
 
 ## Feature graph resolution
 
 `src/resolver.rs` creates a `FeatureGraph` keyed by Cargo package ID. Each `FeatureNode` stores package identity, active features, available manifest features, optional dependencies, dependency feature requests, dependency IDs, and recorded feature sources.
 
-Resolution currently combines Cargo's resolved active features with manifest feature expansion. It also records best-effort ancestor paths so duplicate feature requests can be reported with enough context to be actionable.
+Resolution treats Cargo metadata resolve nodes as the source of truth for active features and dependency edges. That means edition 2021 / resolver v2 unification decisions made by Cargo, including direct dependency feature requests, transitive feature forwarding, build dependencies, dev dependencies present in metadata, and workspace-member unification, are preserved instead of being recomputed by this crate.
+
+Parsed manifest data is used mainly to enrich provenance. The resolver records sources for dependency feature requests (for example, `app/serde`) and for active feature expansions that forward to other package features (for example, `app/default -> serde/derive`). The graph uses `BTreeMap`/`BTreeSet` storage plus sorted vectors for dependencies and feature-source lists so report output remains deterministic.
+
+Known best-effort edges remain intentionally small and dependency-free: the manifest parser does not evaluate target `cfg` expressions, does not model every Cargo table form, and does not distinguish build/dev/normal provenance when Cargo has unified multiple dependency kinds into one resolve node. In those cases, the active feature set still follows Cargo metadata, while the explanatory source labels are conservative hints for auditing.
 
 ## Analysis passes
 

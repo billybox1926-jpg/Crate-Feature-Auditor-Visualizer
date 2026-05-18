@@ -1,0 +1,16 @@
+[package]
+name = "leaf"
+version = "0.1.0"
+edition = "2021"
+
+[features]
+default = ["default-on"]
+default-on = []
+direct-leaf = []
+direct-extra = []
+dev-only = []
+workspace-base = []
+tool-only = []
+mid-forward = []
+propagated = []
+build-transitive = []

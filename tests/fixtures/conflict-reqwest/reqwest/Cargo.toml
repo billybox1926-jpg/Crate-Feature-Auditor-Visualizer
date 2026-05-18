@@ -1,0 +1,11 @@
+[package]
+name = "reqwest"
+version = "0.0.0"
+edition = "2021"
+
+[features]
+default = []
+native-tls = []
+rustls-tls = []
+json = []
+multipart = []

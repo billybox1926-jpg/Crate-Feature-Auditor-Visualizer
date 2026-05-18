@@ -208,9 +208,9 @@ fn skip_non_code(raw: &str, start: usize) -> Option<(usize, bool)> {
         }
         return Some((raw.len(), true));
     }
-    if rest.starts_with('"') {
+    if let Some(stripped) = rest.strip_prefix('"') {
         let mut escaped = false;
-        for (offset, ch) in rest[1..].char_indices() {
+        for (offset, ch) in stripped.char_indices() {
             if escaped {
                 escaped = false;
                 continue;

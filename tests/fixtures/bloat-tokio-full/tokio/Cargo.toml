@@ -1,0 +1,16 @@
+[package]
+name = "tokio"
+version = "1.0.0"
+edition = "2021"
+
+[lib]
+path = "src/lib.rs"
+
+[features]
+default = []
+full = ["net", "process", "rt-multi-thread", "sync", "time"]
+net = []
+process = []
+rt-multi-thread = []
+sync = []
+time = []

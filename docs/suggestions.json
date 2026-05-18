@@ -23,9 +23,21 @@
       "features": ["json", "multipart"],
       "severity": "info",
       "message": "Both features pull in additional heavy dependencies. Consider if both are required."
+    },
+    {
+      "crate": "serde",
+      "features": ["alloc", "std"],
+      "severity": "warning",
+      "message": "Feature 'std' already implies 'alloc'. Enabling both explicitly is usually redundant."
     }
   ],
   "bloat": [
+    {
+      "crate": "actix-web",
+      "feature": "openssl",
+      "pulls_in": ["openssl", "actix-tls"],
+      "message": "Adds OpenSSL binding. If rustls is already used elsewhere, consider switching to 'rustls' feature to reduce duplicate TLS stacks."
+    },
     {
       "crate": "reqwest",
       "feature": "json",
@@ -45,10 +57,10 @@
       "message": "Adds proc-macro dependency. Consider using manual Serialize/Deserialize impls for small crates."
     },
     {
-      "crate": "actix-web",
-      "feature": "openssl",
-      "pulls_in": ["openssl", "actix-tls"],
-      "message": "Adds OpenSSL binding. If rustls is already used elsewhere, consider switching to 'rustls' feature to reduce duplicate TLS stacks."
+      "crate": "tokio",
+      "feature": "full",
+      "pulls_in": ["net", "process", "rt-multi-thread", "sync", "time"],
+      "message": "Enables a broad async surface area. Prefer enabling only the Tokio sub-features your crate actually uses."
     }
   ],
   "default_features": {
@@ -60,6 +72,10 @@
       {
         "crate": "reqwest",
         "reason": "Default features enable 'default-tls' (native-tls). Often rustls-tls is preferred in pure Rust environments."
+      },
+      {
+        "crate": "serde",
+        "reason": "Default features enable 'std'. For no-std crates that only need allocation support, set default-features = false and opt into 'alloc' explicitly."
       }
     ]
   }

@@ -25,7 +25,7 @@ List target modules, commands, docs, or tests.
 
 ## Validation expectations
 - [ ] Add or update tests for behavior changes.
-- [ ] Run `cargo fmt -- --check`.
+- [ ] Run `cargo fmt --check`.
 - [ ] Run `cargo test`.
 
 If this is an improvement to existing behavior instead of a new capability, switch the label to `enhancement`.

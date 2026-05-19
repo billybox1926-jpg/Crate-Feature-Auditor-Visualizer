@@ -36,7 +36,7 @@ List likely files, modules, or docs pages.
 
 ## Validation expectations
 - [ ] Add or update tests if behavior changes.
-- [ ] Run `cargo fmt -- --check`.
+- [ ] Run `cargo fmt --check`.
 - [ ] Run `cargo test`.
 
 Need label help? See `docs/ISSUE_LABELS.md`.

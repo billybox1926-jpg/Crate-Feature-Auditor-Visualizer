@@ -48,12 +48,12 @@ Create a small workspace under `tests/fixtures/<name>/` with its own `Cargo.toml
 
 ## Pull request checklist
 
-Before opening a PR, run:
+Before opening a PR, please ensure your code passes the full validation gate locally:
 
-```bash
-cargo fmt
-cargo test
-```
+- [ ] Run `cargo fmt --check` to ensure correct formatting.
+- [ ] Run `cargo clippy --all-targets --all-features -- -D warnings` to catch lints and warnings.
+- [ ] Run `cargo test` to ensure all tests pass.
+- [ ] Run `cargo build` to verify the project builds successfully.
 
 Then confirm:
 

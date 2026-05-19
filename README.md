@@ -10,6 +10,12 @@
 
 The tool uses `cargo metadata`, manifest parsing, configured rules, and conservative Rust source scanning. It does not compile the target project.
 
+## Scope and limits
+
+Cargo Feature Lens is an audit helper, not a replacement for Cargo, `cargo check`, or project-specific review. It treats `cargo metadata` as the source of truth for resolved packages and active features, then adds lightweight analysis for feature provenance, rule-driven findings, and simple source references.
+
+Findings are review signals. They can highlight risky or redundant feature choices, but they do not automatically prove that a feature should be removed. Source scanning is intentionally conservative, and the tool does not evaluate generated code, build scripts, macros, or every possible `cfg` expression.
+
 ## Demo
 
 Run the included conflict fixture to see a short, reproducible audit report:

@@ -15,7 +15,6 @@ env:
 
 jobs:
   rust:
-    name: Rust checks
     runs-on: ubuntu-latest
 
     steps:

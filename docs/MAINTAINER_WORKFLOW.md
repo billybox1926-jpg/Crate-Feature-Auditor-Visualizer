@@ -9,9 +9,10 @@ Use each project surface for a clear purpose:
 | Surface | Purpose |
 | --- | --- |
 | `README.md` | User quickstart, installation, CLI usage, and examples. |
-| `ARCHITECTURE.md` | Technical design, data flow, and implementation decisions. |
-| `CONTRIBUTING.md` | Contributor setup, checks, and collaboration expectations. |
-| `ROADMAP.md` | Broad project direction and completed/planned capability areas. |
+| `docs/architecture.md` | Technical design, data flow, and implementation decisions. |
+| `docs/CONTRIBUTING.md` | Contributor setup, checks, and collaboration expectations. |
+| `docs/roadmap.md` | Broad project direction and completed/planned capability areas. |
+| `docs/suggestions.json` | Structured backlog proposals and machine-readable suggestion intake. |
 | GitHub Issues | Active work tracking, scoping, acceptance criteria, and dependencies. |
 | GitHub Wiki | Lightweight operations handbook and contributor/maintainer navigation. |
 

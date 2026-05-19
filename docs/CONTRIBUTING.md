@@ -22,6 +22,7 @@ Rust 1.70 or newer is required.
 - `src/report.rs` — terminal, Markdown, and JSON report rendering.
 - `tests/fixtures/` — small Cargo workspaces used by integration tests.
 - `docs/suggestions.json` — optional conflict and bloat rule database (canonical path updated from root `suggestions.json`).
+- `docs/rule_authoring.md` — guidance for maintainers adding built-in rules.
 
 See `docs/architecture.md` for more detail.
 
@@ -60,3 +61,4 @@ Then confirm:
 - [ ] User-facing behavior is documented.
 - [ ] `TODO.md` is updated if a tracked task was completed or changed.
 - [ ] New report output is deterministic.
+- [ ] Consult `docs/rule_authoring.md` for guidance when adding new built-in rules.

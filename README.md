@@ -10,6 +10,33 @@
 
 The tool uses `cargo metadata`, manifest parsing, configured rules, and conservative Rust source scanning. It does not compile the target project.
 
+
+## Demo
+
+Run the included conflict fixture to see a short, reproducible audit report:
+
+```bash
+cargo run -- feature-lens --manifest-path tests/fixtures/conflict-reqwest/Cargo.toml --check --fail-on warning
+```
+
+Sample output (abridged):
+
+```text
+Feature Footprint Report
+────────────────────────
+✓ 2 total features active across 2 crates
+⚠ 3 findings detected
+Finding summary: 3 visible findings
+  severity: info 0, warning 2, error 1
+  kind: Unused 2, Conflict 1
+
+┌─ reqwest (0.0.0)
+│  active features: native-tls, rustls-tls
+│  ✖ Conflict: TLS backends are mutually exclusive. Choose exactly one (native-tls, rustls-tls, or default-tls).
+```
+
+Read this top-down: the summary is CI-friendly triage, then crate sections show exactly which feature set triggered each advisory finding. This complements Cargo's native tooling by focusing on feature provenance and rule-driven audit hints, not build correctness proof.
+
 ## What it reports
 
 - Active crate features and where feature activation comes from.

@@ -10,7 +10,6 @@
 
 The tool uses `cargo metadata`, manifest parsing, configured rules, and conservative Rust source scanning. It does not compile the target project.
 
-
 ## Demo
 
 Run the included conflict fixture to see a short, reproducible audit report:
@@ -111,41 +110,25 @@ cargo feature-lens --remote --crate tokio
 cargo feature-lens --remote --crate serde --crate-version 1
 ```
 
-For local project policy, add an optional `feature-lens.toml` file in the working directory. Local rules are additive with the built-in rule database in `docs/suggestions.json`.
+## Local rules
 
-## Documentation
+Add an optional `feature-lens.toml` file in the working directory to define project-specific conflict, bloat, or default-feature guidance. Local rules are additive with the built-in rule database in `docs/suggestions.json`.
+
+## CI usage
+
+Use `--check` with `--fail-on` to turn advisory findings into a CI gate:
+
+```bash
+cargo feature-lens --check --fail-on warning
+```
+
+Use `--min-severity` when you want reports to hide lower-severity findings but keep the full analysis behavior available for stricter runs.
+
+## More documentation
 
 - [User guide](docs/guide.md)
 - [Architecture](docs/architecture.md)
 - [Contributing](docs/CONTRIBUTING.md)
-- [Maintainer workflow](docs/MAINTAINER_WORKFLOW.md)
-- [Issue labels](docs/ISSUE_LABELS.md)
-- [Roadmap](docs/roadmap.md)
-- [TODO](docs/TODO.md)
-
-## Development
-
-Run the same checks used by CI:
-
-```bash
-cargo fmt --check
-cargo clippy --all-targets --all-features -- -D warnings
-cargo test
-cargo build
-```
-
-Try the included fixtures:
-
-```bash
-cargo run -- feature-lens --manifest-path tests/fixtures/basic/Cargo.toml
-cargo run -- --remote --crate serde --crate-version 1
-```
-
-## Repository workflow
-
-Keep changes small, deterministic, and issue-focused. The CLI layer should stay thin; reusable logic belongs in library modules with tests.
-
-Open work is tracked in GitHub Issues for this repository.
 
 ## License
 

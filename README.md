@@ -1,4 +1,4 @@
-# cargo-feature-lens
+# Cargo Feature Lens
 
 [![CI](https://github.com/billybox1926-jpg/Crate-Feature-Auditor-Visualizer/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/billybox1926-jpg/Crate-Feature-Auditor-Visualizer/actions/workflows/ci.yml?query=branch%3Amain)
 ![Rust](https://img.shields.io/badge/rust-1.70%2B-orange)

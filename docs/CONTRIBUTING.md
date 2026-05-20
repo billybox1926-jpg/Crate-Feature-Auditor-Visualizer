@@ -12,6 +12,12 @@ cargo test
 
 Rust 1.70 or newer is required.
 
+On Windows PowerShell, you can run the full local validation gate with:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\check.ps1
+```
+
 ## Project layout
 
 - `src/main.rs` — CLI parsing, cargo subcommand handling, and top-level orchestration.
@@ -40,7 +46,7 @@ See `docs/architecture.md` for more detail.
 2. Return `Vec<Finding>` from a focused `analyze(&AnalysisContext)` function.
 3. Wire the pass into `analysis::run_all`.
 4. Add unit tests or fixture-based CLI tests covering the new findings.
-5. Update `README.md`, `TODO.md`, and `docs/guide.md` if users need to understand the new finding kind.
+5. Update `README.md`, `docs/TODO.md`, and `docs/guide.md` if users need to understand the new finding kind.
 
 ## Adding fixtures
 
@@ -48,7 +54,15 @@ Create a small workspace under `tests/fixtures/<name>/` with its own `Cargo.toml
 
 ## Pull request checklist
 
-Before opening a PR, please ensure your code passes the full validation gate locally:
+Before opening a PR, please ensure your code passes the full validation gate locally.
+
+On Windows PowerShell, you can run:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\check.ps1
+```
+
+Or run the checks manually:
 
 - [ ] Run `cargo fmt --check` to ensure correct formatting.
 - [ ] Run `cargo clippy --all-targets --all-features -- -D warnings` to catch lints and warnings.
@@ -59,6 +73,6 @@ Then confirm:
 
 - [ ] The change is covered by tests or a clear manual check.
 - [ ] User-facing behavior is documented.
-- [ ] `TODO.md` is updated if a tracked task was completed or changed.
+- [ ] `docs/TODO.md` is updated if a tracked task was completed or changed.
 - [ ] New report output is deterministic.
 - [ ] Consult `docs/rule_authoring.md` for guidance when adding new built-in rules.

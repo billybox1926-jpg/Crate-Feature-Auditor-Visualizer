@@ -1,2 +1,31 @@
 /target/
 /tests/fixtures/*/target/
+
+# Local environment and secrets
+.env
+.env.*
+*.env
+!.env.example
+
+# Local AI/tooling notes
+GEMINI.md
+
+# Local logs and scratch output
+*.log
+*.tmp
+tmp/
+temp/
+
+# Generated local reports and graphs
+feature-report.*
+feature-graph.*
+*.dot
+*.mmd
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo

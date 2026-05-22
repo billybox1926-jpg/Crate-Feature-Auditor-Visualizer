@@ -304,11 +304,20 @@ impl Cli {
             let Some(arg) = arg.to_str() else { continue };
 
             match arg {
-                "-o" | "--output" => cli.output = iter.next().map(PathBuf::from),
+                "-o" | "--output" => {
+                    let Some(value) = iter.next() else {
+                        return Err("--output requires a file path".into());
+                    };
+                    cli.output = Some(PathBuf::from(value));
+                }
                 "--unused" => cli.unused = true,
                 "--bloat" => cli.bloat = true,
                 "--crate" => {
-                    cli.crate_filter = iter.next().and_then(|value| value.into_string().ok())
+                    let Some(value) = iter.next().and_then(|value| value.into_string().ok())
+                    else {
+                        return Err("--crate requires a crate name".into());
+                    };
+                    cli.crate_filter = Some(value);
                 }
                 "--manifest-path" => {
                     if let Some(value) = iter.next() {
@@ -334,7 +343,11 @@ impl Cli {
                     );
                 }
                 "--crate-version" => {
-                    cli.crate_version = iter.next().and_then(|value| value.into_string().ok())
+                    let Some(value) = iter.next().and_then(|value| value.into_string().ok())
+                    else {
+                        return Err("--crate-version requires a version requirement".into());
+                    };
+                    cli.crate_version = Some(value);
                 }
                 "--format" => {
                     let Some(value) = iter.next().and_then(|value| value.into_string().ok()) else {
@@ -419,6 +432,42 @@ mod tests {
 
         assert_eq!(cli.manifest_path, PathBuf::from("Cargo.toml"));
         assert_eq!(cli.crate_filter.as_deref(), Some("cargo-feature-lens"));
+    }
+
+    #[test]
+    fn rejects_missing_value_for_output() {
+        let error = Cli::parse(vec![
+            OsString::from("cargo-feature-lens"),
+            OsString::from("--output"),
+        ])
+        .expect_err("missing --output value should fail");
+
+        assert_eq!(error.to_string(), "--output requires a file path");
+    }
+
+    #[test]
+    fn rejects_missing_value_for_crate() {
+        let error = Cli::parse(vec![
+            OsString::from("cargo-feature-lens"),
+            OsString::from("--crate"),
+        ])
+        .expect_err("missing --crate value should fail");
+
+        assert_eq!(error.to_string(), "--crate requires a crate name");
+    }
+
+    #[test]
+    fn rejects_missing_value_for_crate_version() {
+        let error = Cli::parse(vec![
+            OsString::from("cargo-feature-lens"),
+            OsString::from("--crate-version"),
+        ])
+        .expect_err("missing --crate-version value should fail");
+
+        assert_eq!(
+            error.to_string(),
+            "--crate-version requires a version requirement"
+        );
     }
 
     #[test]

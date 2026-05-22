@@ -11,6 +11,8 @@ use cargo_feature_lens::report::{self, OutputFormat, ReportOptions};
 use cargo_feature_lens::resolver;
 
 const BUILTIN_SUGGESTIONS_JSON: &str = include_str!("../docs/suggestions.json");
+const MAX_REMOTE_CRATE_NAME_LEN: usize = 64;
+const MAX_REMOTE_CRATE_VERSION_LEN: usize = 128;
 
 #[derive(Debug)]
 struct Cli {
@@ -122,6 +124,10 @@ fn load_remote_crate_metadata(cli: &Cli) -> Result<metadata::Metadata, Box<dyn E
         .as_deref()
         .ok_or("remote analysis requires --crate <name>")?;
     let crate_version = cli.crate_version.as_deref().unwrap_or("*");
+
+    validate_remote_crate_name(crate_name)?;
+    validate_remote_crate_version(crate_version)?;
+
     let dir = std::env::temp_dir().join(format!(
         "cargo-feature-lens-remote-{}-{}",
         std::process::id(),
@@ -147,6 +153,61 @@ fn load_remote_crate_metadata(cli: &Cli) -> Result<metadata::Metadata, Box<dyn E
         .and_then(|metadata| re_root_remote_metadata(metadata, crate_name));
     let _ = fs::remove_dir_all(&dir);
     result
+}
+
+fn validate_remote_crate_name(crate_name: &str) -> Result<(), Box<dyn Error>> {
+    if crate_name.is_empty() {
+        return Err("invalid --crate value: crate name cannot be empty".into());
+    }
+    if crate_name.len() > MAX_REMOTE_CRATE_NAME_LEN {
+        return Err(format!(
+            "invalid --crate value {crate_name:?}: crate name is longer than {MAX_REMOTE_CRATE_NAME_LEN} bytes"
+        )
+        .into());
+    }
+    if !crate_name
+        .chars()
+        .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_'))
+    {
+        return Err(format!(
+            "invalid --crate value {crate_name:?}: use only ASCII letters, numbers, hyphens, or underscores"
+        )
+        .into());
+    }
+    Ok(())
+}
+
+fn validate_remote_crate_version(crate_version: &str) -> Result<(), Box<dyn Error>> {
+    if crate_version.is_empty() {
+        return Err("invalid --crate-version value: version requirement cannot be empty".into());
+    }
+    if crate_version.len() > MAX_REMOTE_CRATE_VERSION_LEN {
+        return Err(format!(
+            "invalid --crate-version value {crate_version:?}: version requirement is longer than {MAX_REMOTE_CRATE_VERSION_LEN} bytes"
+        )
+        .into());
+    }
+    if !crate_version.chars().any(|ch| ch.is_ascii_digit() || ch == '*') {
+        return Err(format!(
+            "invalid --crate-version value {crate_version:?}: version requirement must include a digit or `*`"
+        )
+        .into());
+    }
+    if !crate_version.chars().all(is_remote_version_char) {
+        return Err(format!(
+            "invalid --crate-version value {crate_version:?}: use only Cargo version requirement characters"
+        )
+        .into());
+    }
+    Ok(())
+}
+
+fn is_remote_version_char(ch: char) -> bool {
+    ch.is_ascii_alphanumeric()
+        || matches!(
+            ch,
+            '.' | '-' | '+' | '*' | '^' | '~' | '<' | '>' | '=' | ',' | ' '
+        )
 }
 
 fn re_root_remote_metadata(
@@ -315,7 +376,10 @@ fn cargo_aware_args() -> Vec<OsString> {
 
 #[cfg(test)]
 mod tests {
-    use super::{load_builtin_suggestions, re_root_remote_metadata, Cli};
+    use super::{
+        load_builtin_suggestions, re_root_remote_metadata, validate_remote_crate_name,
+        validate_remote_crate_version, Cli,
+    };
     use cargo_feature_lens::metadata::{Metadata, Package, ResolveNode};
     use cargo_feature_lens::Severity;
     use std::ffi::OsString;
@@ -381,6 +445,55 @@ mod tests {
             .default_features
             .iter()
             .any(|rule| rule.crate_name == "serde"));
+    }
+
+    #[test]
+    fn validates_remote_crate_names() {
+        for valid in ["serde", "serde_json", "tokio-util", "cargo-feature-lens"] {
+            validate_remote_crate_name(valid).unwrap();
+        }
+
+        for invalid in [
+            "",
+            "serde json",
+            "serde/path",
+            "../serde",
+            "serde\nother",
+            "serde\" = \"*",
+        ] {
+            assert!(
+                validate_remote_crate_name(invalid).is_err(),
+                "{invalid:?} should be rejected"
+            );
+        }
+    }
+
+    #[test]
+    fn validates_remote_crate_versions() {
+        for valid in [
+            "*",
+            "1.0.0",
+            "^1.0",
+            "~1.2",
+            ">= 1.0, < 2.0",
+            "1.0.0-alpha.1+build.5",
+        ] {
+            validate_remote_crate_version(valid).unwrap();
+        }
+
+        for invalid in [
+            "",
+            "latest",
+            "1.0/../../evil",
+            "1.0\nserde = \"*",
+            "1.0\"\nother = \"*",
+            "{ version = \"1.0\" }",
+        ] {
+            assert!(
+                validate_remote_crate_version(invalid).is_err(),
+                "{invalid:?} should be rejected"
+            );
+        }
     }
 
     #[test]

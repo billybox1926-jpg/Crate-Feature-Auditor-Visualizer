@@ -2,6 +2,8 @@ use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
+const MAX_SOURCE_FILE_BYTES: u64 = 1_048_576;
+
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum SourceUsageClass {
     Normal,
@@ -41,7 +43,7 @@ pub fn scan_package_sources(manifest_path: &str) -> SourceUsage {
     ] {
         let path = package_root.join(dir);
         for file in sorted_rust_files(&path) {
-            if let Ok(raw) = fs::read_to_string(&file) {
+            if let Some(raw) = read_source_file(&file) {
                 let features = extract_feature_references(&raw);
                 match class {
                     SourceUsageClass::Normal => usage.normal_features.extend(features),
@@ -78,14 +80,33 @@ fn visit_rust_files(path: &Path, files: &mut Vec<PathBuf>) {
         {
             continue;
         }
-        if entry_path.is_dir() {
+
+        let Ok(file_type) = entry.file_type() else {
+            continue;
+        };
+        if file_type.is_symlink() {
+            continue;
+        }
+        if file_type.is_dir() {
             visit_rust_files(&entry_path, files);
             continue;
         }
-        if entry_path.extension().and_then(|ext| ext.to_str()) == Some("rs") {
+        if file_type.is_file() && entry_path.extension().and_then(|ext| ext.to_str()) == Some("rs")
+        {
             files.push(entry_path);
         }
     }
+}
+
+fn read_source_file(path: &Path) -> Option<String> {
+    let metadata = fs::symlink_metadata(path).ok()?;
+    if metadata.file_type().is_symlink()
+        || !metadata.is_file()
+        || metadata.len() > MAX_SOURCE_FILE_BYTES
+    {
+        return None;
+    }
+    fs::read_to_string(path).ok()
 }
 
 fn is_hidden(path: &Path) -> bool {
@@ -231,6 +252,7 @@ fn skip_non_code(raw: &str, start: usize) -> Option<(usize, bool)> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::time::{SystemTime, UNIX_EPOCH};
 
     #[test]
     fn extracts_simple_cfg_and_cfg_macro_features() {
@@ -269,5 +291,68 @@ let text = "feature = \"fake\"";
 let cfg = "#[cfg(feature = \"also_fake\")]";
 "##;
         assert!(extract_feature_references(raw).is_empty());
+    }
+
+    #[test]
+    fn scan_package_sources_skips_large_source_files() {
+        let root = temp_package_root("large-source");
+        let src = root.join("src");
+        fs::create_dir_all(&src).unwrap();
+        fs::write(root.join("Cargo.toml"), "").unwrap();
+        fs::write(
+            src.join("lib.rs"),
+            r#"#[cfg(feature = "small")] fn small() {}"#,
+        )
+        .unwrap();
+
+        let mut large = String::from(r#"#[cfg(feature = "too_large")] fn huge() {}"#);
+        large.push_str(&" ".repeat(MAX_SOURCE_FILE_BYTES as usize));
+        fs::write(src.join("large.rs"), large).unwrap();
+
+        let usage = scan_package_sources(&root.join("Cargo.toml").display().to_string());
+
+        assert_eq!(usage.normal_features, BTreeSet::from(["small".to_string()]));
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn scan_package_sources_skips_symlinked_source_files() {
+        use std::os::unix::fs::symlink;
+
+        let root = temp_package_root("symlink-source");
+        let outside = temp_package_root("symlink-outside");
+        let src = root.join("src");
+        fs::create_dir_all(&src).unwrap();
+        fs::create_dir_all(&outside).unwrap();
+        fs::write(root.join("Cargo.toml"), "").unwrap();
+        fs::write(
+            src.join("lib.rs"),
+            r#"#[cfg(feature = "direct")] fn direct() {}"#,
+        )
+        .unwrap();
+        fs::write(
+            outside.join("outside.rs"),
+            r#"#[cfg(feature = "outside")] fn outside() {}"#,
+        )
+        .unwrap();
+        symlink(outside.join("outside.rs"), src.join("linked.rs")).unwrap();
+
+        let usage = scan_package_sources(&root.join("Cargo.toml").display().to_string());
+
+        assert_eq!(usage.normal_features, BTreeSet::from(["direct".to_string()]));
+        let _ = fs::remove_dir_all(root);
+        let _ = fs::remove_dir_all(outside);
+    }
+
+    fn temp_package_root(name: &str) -> PathBuf {
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        std::env::temp_dir().join(format!(
+            "cargo-feature-lens-{name}-{}-{nonce}",
+            std::process::id()
+        ))
     }
 }

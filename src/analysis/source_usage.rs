@@ -340,7 +340,10 @@ let cfg = "#[cfg(feature = \"also_fake\")]";
 
         let usage = scan_package_sources(&root.join("Cargo.toml").display().to_string());
 
-        assert_eq!(usage.normal_features, BTreeSet::from(["direct".to_string()]));
+        assert_eq!(
+            usage.normal_features,
+            BTreeSet::from(["direct".to_string()])
+        );
         let _ = fs::remove_dir_all(root);
         let _ = fs::remove_dir_all(outside);
     }

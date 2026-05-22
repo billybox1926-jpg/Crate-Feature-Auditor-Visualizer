@@ -187,7 +187,10 @@ fn validate_remote_crate_version(crate_version: &str) -> Result<(), Box<dyn Erro
         )
         .into());
     }
-    if !crate_version.chars().any(|ch| ch.is_ascii_digit() || ch == '*') {
+    if !crate_version
+        .chars()
+        .any(|ch| ch.is_ascii_digit() || ch == '*')
+    {
         return Err(format!(
             "invalid --crate-version value {crate_version:?}: version requirement must include a digit or `*`"
         )

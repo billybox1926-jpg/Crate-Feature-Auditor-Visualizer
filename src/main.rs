@@ -313,8 +313,7 @@ impl Cli {
                 "--unused" => cli.unused = true,
                 "--bloat" => cli.bloat = true,
                 "--crate" => {
-                    let Some(value) = iter.next().and_then(|value| value.into_string().ok())
-                    else {
+                    let Some(value) = iter.next().and_then(|value| value.into_string().ok()) else {
                         return Err("--crate requires a crate name".into());
                     };
                     cli.crate_filter = Some(value);
@@ -343,8 +342,7 @@ impl Cli {
                     );
                 }
                 "--crate-version" => {
-                    let Some(value) = iter.next().and_then(|value| value.into_string().ok())
-                    else {
+                    let Some(value) = iter.next().and_then(|value| value.into_string().ok()) else {
                         return Err("--crate-version requires a version requirement".into());
                     };
                     cli.crate_version = Some(value);

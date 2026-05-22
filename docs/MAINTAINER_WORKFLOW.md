@@ -105,6 +105,12 @@ Before closing an issue, confirm:
 - Any follow-up work is captured in a new or existing issue.
 - The close reason matches reality: completed, duplicate, or not planned.
 
+## Release review posture
+
+Development may be AI-assisted in places, but released changes should be reviewed, tested, and accepted under human maintainer responsibility.
+
+Release notes and release-prep issues should describe the actual review and validation performed for the release. Do not imply that the project is unreviewed generated software, and do not claim that all work was entirely human-written if AI-assisted tooling contributed to the change history.
+
 ## Maintainer quality bar
 
 The goal is for a new contributor to open the issue tracker and see a managed project, not a pile of notes. Clear labels, mirrored dependencies, acceptance criteria, and milestone discipline are part of the product experience.

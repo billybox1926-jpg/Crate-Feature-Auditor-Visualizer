@@ -10,6 +10,8 @@ use cargo_feature_lens::metadata;
 use cargo_feature_lens::report::{self, OutputFormat, ReportOptions};
 use cargo_feature_lens::resolver;
 
+const BUILTIN_SUGGESTIONS_JSON: &str = include_str!("../docs/suggestions.json");
+
 #[derive(Debug)]
 struct Cli {
     output: Option<PathBuf>,
@@ -38,7 +40,7 @@ fn run() -> Result<(), Box<dyn Error>> {
     let graph = resolver::resolve(&metadata, &mut manifests)?;
 
     let current_dir = std::env::current_dir()?;
-    let mut suggestions = analysis::Suggestions::builtin();
+    let mut suggestions = load_builtin_suggestions()?;
     let local_suggestions_path = current_dir.join("feature-lens.toml");
     let local_suggestions = analysis::Suggestions::load_local_optional(&local_suggestions_path)?;
     suggestions.extend(local_suggestions);
@@ -80,6 +82,17 @@ fn run() -> Result<(), Box<dyn Error>> {
     }
 
     Ok(())
+}
+
+fn load_builtin_suggestions() -> Result<analysis::Suggestions, Box<dyn Error>> {
+    let path = std::env::temp_dir().join(format!(
+        "cargo-feature-lens-builtins-{}-suggestions.json",
+        std::process::id()
+    ));
+    fs::write(&path, BUILTIN_SUGGESTIONS_JSON)?;
+    let suggestions = analysis::Suggestions::load_optional(&path);
+    let _ = fs::remove_file(&path);
+    suggestions
 }
 
 fn load_metadata_for_cli(
@@ -302,7 +315,7 @@ fn cargo_aware_args() -> Vec<OsString> {
 
 #[cfg(test)]
 mod tests {
-    use super::{re_root_remote_metadata, Cli};
+    use super::{load_builtin_suggestions, re_root_remote_metadata, Cli};
     use cargo_feature_lens::metadata::{Metadata, Package, ResolveNode};
     use cargo_feature_lens::Severity;
     use std::ffi::OsString;
@@ -356,6 +369,18 @@ mod tests {
 
         let cli = Cli::parse(args).unwrap();
         assert_eq!(cli.manifest_path, PathBuf::from("Cargo.toml"));
+    }
+
+    #[test]
+    fn embedded_builtin_suggestions_are_available() {
+        let suggestions = load_builtin_suggestions().unwrap();
+
+        assert!(!suggestions.conflicts.is_empty());
+        assert!(!suggestions.bloat.is_empty());
+        assert!(suggestions
+            .default_features
+            .iter()
+            .any(|rule| rule.crate_name == "serde"));
     }
 
     #[test]

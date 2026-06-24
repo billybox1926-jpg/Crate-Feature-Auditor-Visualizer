@@ -10,7 +10,6 @@ pub mod manifest;
 pub mod metadata;
 pub mod report;
 pub mod resolver;
-pub mod util;
 
 pub use analysis::{AnalysisContext, Finding, FindingKind, Severity};
 pub use resolver::{FeatureGraph, FeatureNode, FeatureSource};

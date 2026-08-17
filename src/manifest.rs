@@ -135,9 +135,7 @@ fn hydrate_workspace_dependencies(path: &Path, parsed: &mut ParsedManifest) -> R
     Ok(())
 }
 
-fn find_workspace_dependencies(
-    path: &Path,
-) -> Result<BTreeMap<String, DependencySpec>> {
+fn find_workspace_dependencies(path: &Path) -> Result<BTreeMap<String, DependencySpec>> {
     let Some(manifest_dir) = path.parent() else {
         return Ok(BTreeMap::new());
     };

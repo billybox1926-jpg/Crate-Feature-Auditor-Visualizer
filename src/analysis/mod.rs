@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::Path;
 
-use crate::error::{Result, Error};
+use crate::error::{Error, Result};
 use crate::resolver::FeatureGraph;
 
 pub mod bloat;

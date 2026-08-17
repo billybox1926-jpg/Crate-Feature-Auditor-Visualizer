@@ -340,7 +340,9 @@ fn parse_local_suggestions(raw: &str) -> Result<Suggestions> {
             continue;
         }
         let Some((key, value)) = line.split_once('=') else {
-            return Err(Error::Parse(format!("line {line_no}: expected `key = value`")));
+            return Err(Error::Parse(format!(
+                "line {line_no}: expected `key = value`"
+            )));
         };
         let key = key.trim().to_string();
         let value = value.trim();
@@ -354,11 +356,15 @@ fn parse_local_suggestions(raw: &str) -> Result<Suggestions> {
             }
             let arr = string_items(value);
             if arr.is_empty() && value != "[]" {
-                return Err(Error::Parse(format!("line {line_no}: array items must be quoted strings")));
+                return Err(Error::Parse(format!(
+                    "line {line_no}: array items must be quoted strings"
+                )));
             }
             arr.join(",")
         } else {
-            return Err(Error::Parse(format!("line {line_no}: unsupported value `{value}`")));
+            return Err(Error::Parse(format!(
+                "line {line_no}: unsupported value `{value}`"
+            )));
         };
         pending.insert(key, parsed);
     }

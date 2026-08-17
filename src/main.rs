@@ -87,14 +87,8 @@ fn run() -> Result<(), Box<dyn Error>> {
 }
 
 fn load_builtin_suggestions() -> Result<analysis::Suggestions, Box<dyn Error>> {
-    let path = std::env::temp_dir().join(format!(
-        "cargo-feature-lens-builtins-{}-suggestions.json",
-        std::process::id()
-    ));
-    fs::write(&path, BUILTIN_SUGGESTIONS_JSON)?;
-    let suggestions = analysis::Suggestions::load_optional(&path);
-    let _ = fs::remove_file(&path);
-    suggestions
+    serde_json::from_str(BUILTIN_SUGGESTIONS_JSON)
+        .map_err(|e| format!("Failed to parse built-in suggestions: {e}").into())
 }
 
 fn load_metadata_for_cli(
@@ -128,20 +122,10 @@ fn load_remote_crate_metadata(cli: &Cli) -> Result<metadata::Metadata, Box<dyn E
     validate_remote_crate_name(crate_name)?;
     validate_remote_crate_version(crate_version)?;
 
-    let dir = std::env::temp_dir().join(format!(
-        "cargo-feature-lens-remote-{}-{}",
-        std::process::id(),
-        crate_name
-            .chars()
-            .map(|ch| if ch.is_ascii_alphanumeric() { ch } else { '_' })
-            .collect::<String>()
-    ));
-    if dir.exists() {
-        fs::remove_dir_all(&dir)?;
-    }
-    fs::create_dir_all(dir.join("src"))?;
-    fs::write(dir.join("src").join("lib.rs"), "")?;
-    let manifest = dir.join("Cargo.toml");
+    let dir = tempfile::tempdir().map_err(|e| format!("failed to create temp dir: {e}"))?;
+    fs::create_dir_all(dir.path().join("src"))?;
+    fs::write(dir.path().join("src").join("lib.rs"), "")?;
+    let manifest = dir.path().join("Cargo.toml");
     fs::write(
         &manifest,
         format!(
@@ -151,7 +135,7 @@ fn load_remote_crate_metadata(cli: &Cli) -> Result<metadata::Metadata, Box<dyn E
 
     let result = metadata::load_metadata_manifest(&manifest)
         .and_then(|metadata| re_root_remote_metadata(metadata, crate_name));
-    let _ = fs::remove_dir_all(&dir);
+    dir.close()?;
     result
 }
 

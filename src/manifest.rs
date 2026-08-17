@@ -30,10 +30,7 @@ pub struct ManifestCache {
 }
 
 impl ManifestCache {
-    pub fn get_or_parse(
-        &mut self,
-        path: &Path,
-    ) -> Result<ParsedManifest> {
+    pub fn get_or_parse(&mut self, path: &Path) -> Result<ParsedManifest> {
         let path = path.to_path_buf();
         if let Some(manifest) = self.manifests.get(&path) {
             return Ok(manifest.clone());
@@ -108,10 +105,7 @@ fn parse_manifest(raw: &str) -> ParsedManifest {
     parsed
 }
 
-fn hydrate_workspace_dependencies(
-    path: &Path,
-    parsed: &mut ParsedManifest,
-) -> Result<()> {
+fn hydrate_workspace_dependencies(path: &Path, parsed: &mut ParsedManifest) -> Result<()> {
     if parsed.inherited_workspace_dependencies.is_empty() {
         return Ok(());
     }

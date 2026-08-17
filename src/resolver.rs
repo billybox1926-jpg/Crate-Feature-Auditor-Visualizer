@@ -44,10 +44,7 @@ pub struct FeatureSource {
 }
 
 /// Build an initial feature graph from `cargo metadata` and package manifests.
-pub fn resolve(
-    metadata: &Metadata,
-    manifests: &mut ManifestCache,
-) -> Result<FeatureGraph> {
+pub fn resolve(metadata: &Metadata, manifests: &mut ManifestCache) -> Result<FeatureGraph> {
     let mut graph = FeatureGraph {
         workspace_members: metadata.workspace_members.iter().cloned().collect(),
         ..FeatureGraph::default()

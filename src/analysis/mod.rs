@@ -174,7 +174,7 @@ fn default_features(context: &AnalysisContext<'_>) -> Vec<Finding> {
     findings
 }
 
-fn parse_suggestions(raw: &str) -> Suggestions {
+pub fn parse_suggestions(raw: &str) -> Suggestions {
     let mut suggestions = Suggestions::default();
 
     for object in array_objects(raw, "conflicts") {

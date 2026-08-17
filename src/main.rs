@@ -87,8 +87,7 @@ fn run() -> Result<(), Box<dyn Error>> {
 }
 
 fn load_builtin_suggestions() -> Result<analysis::Suggestions, Box<dyn Error>> {
-    serde_json::from_str(BUILTIN_SUGGESTIONS_JSON)
-        .map_err(|e| format!("Failed to parse built-in suggestions: {e}").into())
+    Ok(analysis::parse_suggestions(BUILTIN_SUGGESTIONS_JSON))
 }
 
 fn load_metadata_for_cli(

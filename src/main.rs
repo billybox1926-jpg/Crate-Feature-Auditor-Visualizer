@@ -90,10 +90,7 @@ fn load_builtin_suggestions() -> Result<analysis::Suggestions> {
     Ok(analysis::parse_suggestions(BUILTIN_SUGGESTIONS_JSON))
 }
 
-fn load_metadata_for_cli(
-    cli: &Cli,
-    remote_analysis: bool,
-) -> Result<metadata::Metadata> {
+fn load_metadata_for_cli(cli: &Cli, remote_analysis: bool) -> Result<metadata::Metadata> {
     if remote_analysis {
         return load_remote_crate_metadata(cli);
     }
@@ -115,13 +112,13 @@ fn load_remote_crate_metadata(cli: &Cli) -> Result<metadata::Metadata> {
     let crate_name = cli
         .crate_filter
         .as_deref()
-        .ok_or("remote analysis requires --crate <name>")?;
+        .ok_or(Error::Cli("remote analysis requires --crate <name>".into()))?;
     let crate_version = cli.crate_version.as_deref().unwrap_or("*");
 
     validate_remote_crate_name(crate_name)?;
     validate_remote_crate_version(crate_version)?;
 
-    let dir = tempfile::tempdir().map_err(|e| format!("failed to create temp dir: {e}"))?;
+    let dir = tempfile::tempdir()?;
     fs::create_dir_all(dir.path().join("src"))?;
     fs::write(dir.path().join("src").join("lib.rs"), "")?;
     let manifest = dir.path().join("Cargo.toml");
@@ -140,7 +137,9 @@ fn load_remote_crate_metadata(cli: &Cli) -> Result<metadata::Metadata> {
 
 fn validate_remote_crate_name(crate_name: &str) -> Result<()> {
     if crate_name.is_empty() {
-        return Err(Error::Cli("invalid --crate value: crate name cannot be empty".into()));
+        return Err(Error::Cli(
+            "invalid --crate value: crate name cannot be empty".into(),
+        ));
     }
     if crate_name.len() > MAX_REMOTE_CRATE_NAME_LEN {
         return Err(Error::Cli(format!(
@@ -160,7 +159,9 @@ fn validate_remote_crate_name(crate_name: &str) -> Result<()> {
 
 fn validate_remote_crate_version(crate_version: &str) -> Result<()> {
     if crate_version.is_empty() {
-        return Err(Error::Cli("invalid --crate-version value: version requirement cannot be empty".into()));
+        return Err(Error::Cli(
+            "invalid --crate-version value: version requirement cannot be empty".into(),
+        ));
     }
     if crate_version.len() > MAX_REMOTE_CRATE_VERSION_LEN {
         return Err(Error::Cli(format!(

@@ -1,10 +1,10 @@
 use std::env;
-use std::error::Error;
 use std::ffi::OsString;
 use std::fs;
 use std::path::{Path, PathBuf};
 
 use cargo_feature_lens::analysis::{self, AnalysisContext, Finding, FindingKind, Severity};
+use cargo_feature_lens::error::{Error, Result};
 use cargo_feature_lens::manifest::ManifestCache;
 use cargo_feature_lens::metadata;
 use cargo_feature_lens::report::{self, OutputFormat, ReportOptions};
@@ -29,11 +29,11 @@ struct Cli {
     crate_version: Option<String>,
 }
 
-fn main() -> Result<(), Box<dyn Error>> {
+fn main() -> Result<(), Error> {
     run()
 }
 
-fn run() -> Result<(), Box<dyn Error>> {
+fn run() -> Result<(), Error> {
     let cli = Cli::parse(cargo_aware_args())?;
     let remote_analysis = is_remote_analysis(&cli);
 
@@ -86,14 +86,14 @@ fn run() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn load_builtin_suggestions() -> Result<analysis::Suggestions, Box<dyn Error>> {
+fn load_builtin_suggestions() -> Result<analysis::Suggestions> {
     Ok(analysis::parse_suggestions(BUILTIN_SUGGESTIONS_JSON))
 }
 
 fn load_metadata_for_cli(
     cli: &Cli,
     remote_analysis: bool,
-) -> Result<metadata::Metadata, Box<dyn Error>> {
+) -> Result<metadata::Metadata> {
     if remote_analysis {
         return load_remote_crate_metadata(cli);
     }
@@ -111,7 +111,7 @@ fn should_analyze_remote(cli: &Cli) -> bool {
         && !Path::new("Cargo.toml").exists()
 }
 
-fn load_remote_crate_metadata(cli: &Cli) -> Result<metadata::Metadata, Box<dyn Error>> {
+fn load_remote_crate_metadata(cli: &Cli) -> Result<metadata::Metadata> {
     let crate_name = cli
         .crate_filter
         .as_deref()
@@ -138,52 +138,47 @@ fn load_remote_crate_metadata(cli: &Cli) -> Result<metadata::Metadata, Box<dyn E
     result
 }
 
-fn validate_remote_crate_name(crate_name: &str) -> Result<(), Box<dyn Error>> {
+fn validate_remote_crate_name(crate_name: &str) -> Result<()> {
     if crate_name.is_empty() {
-        return Err("invalid --crate value: crate name cannot be empty".into());
+        return Err(Error::Cli("invalid --crate value: crate name cannot be empty".into()));
     }
     if crate_name.len() > MAX_REMOTE_CRATE_NAME_LEN {
-        return Err(format!(
+        return Err(Error::Cli(format!(
             "invalid --crate value {crate_name:?}: crate name is longer than {MAX_REMOTE_CRATE_NAME_LEN} bytes"
-        )
-        .into());
+        )));
     }
     if !crate_name
         .chars()
         .all(|ch| ch.is_ascii_alphanumeric() || matches!(ch, '-' | '_'))
     {
-        return Err(format!(
+        return Err(Error::Cli(format!(
             "invalid --crate value {crate_name:?}: use only ASCII letters, numbers, hyphens, or underscores"
-        )
-        .into());
+        )));
     }
     Ok(())
 }
 
-fn validate_remote_crate_version(crate_version: &str) -> Result<(), Box<dyn Error>> {
+fn validate_remote_crate_version(crate_version: &str) -> Result<()> {
     if crate_version.is_empty() {
-        return Err("invalid --crate-version value: version requirement cannot be empty".into());
+        return Err(Error::Cli("invalid --crate-version value: version requirement cannot be empty".into()));
     }
     if crate_version.len() > MAX_REMOTE_CRATE_VERSION_LEN {
-        return Err(format!(
+        return Err(Error::Cli(format!(
             "invalid --crate-version value {crate_version:?}: version requirement is longer than {MAX_REMOTE_CRATE_VERSION_LEN} bytes"
-        )
-        .into());
+        )));
     }
     if !crate_version
         .chars()
         .any(|ch| ch.is_ascii_digit() || ch == '*')
     {
-        return Err(format!(
+        return Err(Error::Cli(format!(
             "invalid --crate-version value {crate_version:?}: version requirement must include a digit or `*`"
-        )
-        .into());
+        )));
     }
     if !crate_version.chars().all(is_remote_version_char) {
-        return Err(format!(
+        return Err(Error::Cli(format!(
             "invalid --crate-version value {crate_version:?}: use only Cargo version requirement characters"
-        )
-        .into());
+        )));
     }
     Ok(())
 }
@@ -199,7 +194,7 @@ fn is_remote_version_char(ch: char) -> bool {
 fn re_root_remote_metadata(
     mut metadata: metadata::Metadata,
     crate_name: &str,
-) -> Result<metadata::Metadata, Box<dyn Error>> {
+) -> Result<metadata::Metadata> {
     let workspace_member = metadata
         .workspace_members
         .first()
@@ -266,7 +261,7 @@ fn kind_selected(kind: FindingKind, cli: &Cli) -> bool {
 }
 
 impl Cli {
-    fn parse(args: Vec<OsString>) -> Result<Self, Box<dyn std::error::Error>> {
+    fn parse(args: Vec<OsString>) -> Result<Self, Error> {
         let mut cli = Self {
             output: None,
             unused: false,

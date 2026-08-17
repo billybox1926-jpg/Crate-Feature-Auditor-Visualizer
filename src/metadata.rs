@@ -2,6 +2,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+use crate::error::Result;
+
 #[derive(Debug, Clone, Default)]
 pub struct Metadata {
     pub packages: Vec<Package>,
@@ -29,7 +31,7 @@ pub struct ResolveNode {
 }
 
 /// Load Cargo's resolved package graph without compiling the target workspace.
-pub fn load_metadata(manifest_path: &Path) -> Result<Metadata, Box<dyn std::error::Error>> {
+pub fn load_metadata(manifest_path: &Path) -> Result<Metadata> {
     let manifest = if manifest_path.is_file() {
         manifest_path.to_path_buf()
     } else {
@@ -38,24 +40,23 @@ pub fn load_metadata(manifest_path: &Path) -> Result<Metadata, Box<dyn std::erro
     load_metadata_manifest(&manifest)
 }
 
-pub fn load_metadata_manifest(manifest: &Path) -> Result<Metadata, Box<dyn std::error::Error>> {
+pub fn load_metadata_manifest(manifest: &Path) -> Result<Metadata> {
     let output = Command::new("cargo")
         .args(["metadata", "--format-version", "1", "--manifest-path"])
         .arg(manifest)
         .output()?;
 
     if !output.status.success() {
-        return Err(format!(
+        return Err(crate::error::Error::Metadata(format!(
             "cargo metadata failed: {}",
             String::from_utf8_lossy(&output.stderr)
-        )
-        .into());
+        )));
     }
 
     parse_metadata(&String::from_utf8(output.stdout)?)
 }
 
-fn parse_metadata(raw: &str) -> Result<Metadata, Box<dyn std::error::Error>> {
+fn parse_metadata(raw: &str) -> Result<Metadata> {
     let packages = array_objects(raw, "packages")
         .into_iter()
         .map(|object| {

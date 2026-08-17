@@ -2,6 +2,8 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use crate::error::Result;
+
 /// Parsed subset of Cargo.toml data needed for feature analysis.
 #[derive(Debug, Clone, Default)]
 pub struct ParsedManifest {
@@ -31,7 +33,7 @@ impl ManifestCache {
     pub fn get_or_parse(
         &mut self,
         path: &Path,
-    ) -> Result<ParsedManifest, Box<dyn std::error::Error>> {
+    ) -> Result<ParsedManifest> {
         let path = path.to_path_buf();
         if let Some(manifest) = self.manifests.get(&path) {
             return Ok(manifest.clone());
@@ -109,7 +111,7 @@ fn parse_manifest(raw: &str) -> ParsedManifest {
 fn hydrate_workspace_dependencies(
     path: &Path,
     parsed: &mut ParsedManifest,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<()> {
     if parsed.inherited_workspace_dependencies.is_empty() {
         return Ok(());
     }

@@ -1,5 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
+use crate::error::Result;
 use crate::manifest::ManifestCache;
 use crate::metadata::{Metadata, ResolveNode};
 
@@ -46,7 +47,7 @@ pub struct FeatureSource {
 pub fn resolve(
     metadata: &Metadata,
     manifests: &mut ManifestCache,
-) -> Result<FeatureGraph, Box<dyn std::error::Error>> {
+) -> Result<FeatureGraph> {
     let mut graph = FeatureGraph {
         workspace_members: metadata.workspace_members.iter().cloned().collect(),
         ..FeatureGraph::default()

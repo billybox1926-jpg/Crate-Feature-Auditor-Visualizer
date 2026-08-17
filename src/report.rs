@@ -1,4 +1,5 @@
 use crate::analysis::{Finding, FindingKind, Severity};
+use crate::error::Result;
 use crate::graph_export;
 use crate::resolver::{FeatureGraph, FeatureNode};
 
@@ -33,7 +34,7 @@ pub fn render(
     graph: &FeatureGraph,
     findings: &[Finding],
     options: &ReportOptions,
-) -> Result<String, Box<dyn std::error::Error>> {
+) -> Result<String> {
     let findings = filter_findings(findings, options);
 
     match options.format {

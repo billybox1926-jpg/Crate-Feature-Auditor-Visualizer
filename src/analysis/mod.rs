@@ -1,6 +1,7 @@
 use std::fs;
 use std::path::Path;
 
+use crate::error::Result;
 use crate::resolver::FeatureGraph;
 
 pub mod bloat;
@@ -83,7 +84,7 @@ pub struct Suggestions {
 }
 
 impl Suggestions {
-    pub fn load_optional(path: &Path) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn load_optional(path: &Path) -> Result<Self> {
         if !path.exists() {
             return Ok(Self::default());
         }
@@ -91,7 +92,7 @@ impl Suggestions {
         Ok(parse_suggestions(&raw))
     }
 
-    pub fn load_local_optional(path: &Path) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn load_local_optional(path: &Path) -> Result<Self> {
         if !path.exists() {
             return Ok(Self::default());
         }

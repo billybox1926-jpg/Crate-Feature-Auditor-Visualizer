@@ -29,11 +29,11 @@ struct Cli {
     crate_version: Option<String>,
 }
 
-fn main() -> Result<(), Error> {
+fn main() -> Result<()> {
     run()
 }
 
-fn run() -> Result<(), Error> {
+fn run() -> Result<()> {
     let cli = Cli::parse(cargo_aware_args())?;
     let remote_analysis = is_remote_analysis(&cli);
 
@@ -270,7 +270,7 @@ fn kind_selected(kind: FindingKind, cli: &Cli) -> bool {
 }
 
 impl Cli {
-    fn parse(args: Vec<OsString>) -> Result<Self, Error> {
+    fn parse(args: Vec<OsString>) -> Result<Self> {
         let mut cli = Self {
             output: None,
             unused: false,

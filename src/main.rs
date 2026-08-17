@@ -200,12 +200,12 @@ fn re_root_remote_metadata(
         .workspace_members
         .first()
         .cloned()
-        .ok_or("remote metadata did not include the probe workspace member")?;
+        .ok_or(Error::Remote("remote metadata did not include the probe workspace member".into()))?;
     let probe_node = metadata
         .resolve_nodes
         .iter()
         .find(|node| node.id == workspace_member)
-        .ok_or("remote metadata did not include the probe resolve node")?;
+        .ok_or(Error::Remote("remote metadata did not include the probe resolve node".into()))?;
     let target_id = probe_node
         .dependencies
         .iter()
@@ -216,7 +216,7 @@ fn re_root_remote_metadata(
                 .any(|package| package.id == **dependency_id && package.name == crate_name)
         })
         .cloned()
-        .ok_or_else(|| format!("crate `{crate_name}` was not resolved from crates.io"))?;
+        .ok_or_else(|| Error::Remote(format!("crate `{crate_name}` was not resolved from crates.io")))?;
 
     let mut reachable = std::collections::BTreeSet::new();
     let mut pending = vec![target_id.clone()];

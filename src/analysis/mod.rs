@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::Path;
 
-use crate::error::Result;
+use crate::error::{Result, Error};
 use crate::resolver::FeatureGraph;
 
 pub mod bloat;
@@ -98,7 +98,7 @@ impl Suggestions {
         }
         let raw = fs::read_to_string(path)?;
         parse_local_suggestions(&raw)
-            .map_err(|err| format!("failed to parse {}: {err}", path.display()).into())
+            .map_err(|err| Error::Suggestions(format!("failed to parse {}: {err}", path.display())))
     }
 
     pub fn extend(&mut self, other: Suggestions) {
@@ -243,7 +243,7 @@ pub fn parse_suggestions(raw: &str) -> Suggestions {
     suggestions
 }
 
-fn parse_local_suggestions(raw: &str) -> Result<Suggestions, String> {
+fn parse_local_suggestions(raw: &str) -> Result<Suggestions> {
     let mut out = Suggestions::default();
     let mut section: Option<String> = None;
     let mut pending = std::collections::BTreeMap::<String, String>::new();
@@ -253,7 +253,7 @@ fn parse_local_suggestions(raw: &str) -> Result<Suggestions, String> {
         |section: Option<&str>,
          pending: &mut std::collections::BTreeMap<String, String>,
          out: &mut Suggestions|
-         -> Result<(), String> {
+         -> Result<()> {
             let Some(current) = section else {
                 return Ok(());
             };
@@ -649,7 +649,7 @@ message = "exclusive"
 "#,
         )
         .expect_err("should fail");
-        assert!(err.contains("invalid `severity`: bogus"));
+        assert!(err.to_string().contains("invalid `severity`: bogus"));
     }
 
     #[test]
@@ -661,6 +661,6 @@ crate = reqwest
 "#,
         )
         .expect_err("should fail");
-        assert!(err.contains("unsupported value"));
+        assert!(err.to_string().contains("unsupported value"));
     }
 }

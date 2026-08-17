@@ -16,6 +16,26 @@ pub enum Error {
     Cli(String),
     #[error("Remote analysis error: {0}")]
     Remote(String),
+    #[error("{0}")]
+    Other(String),
+}
+
+impl From<String> for Error {
+    fn from(s: String) -> Self {
+        Error::Other(s)
+    }
+}
+
+impl From<&str> for Error {
+    fn from(s: &str) -> Self {
+        Error::Other(s.to_string())
+    }
+}
+
+impl From<std::string::FromUtf8Error> for Error {
+    fn from(e: std::string::FromUtf8Error) -> Self {
+        Error::Parse(format!("invalid UTF-8: {e}"))
+    }
 }
 
 pub type Result<T> = std::result::Result<T, Error>;

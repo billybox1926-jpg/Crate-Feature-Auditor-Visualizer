@@ -354,9 +354,7 @@ fn parse_local_suggestions(raw: &str) -> Result<Suggestions> {
             }
             let arr = string_items(value);
             if arr.is_empty() && value != "[]" {
-                return Err(format!(
-                    "line {line_no}: array items must be quoted strings"
-                ).into());
+                return Err(format!("line {line_no}: array items must be quoted strings").into());
             }
             arr.join(",")
         } else {

@@ -340,27 +340,27 @@ fn parse_local_suggestions(raw: &str) -> Result<Suggestions> {
             continue;
         }
         let Some((key, value)) = line.split_once('=') else {
-            return Err(format!("line {line_no}: expected `key = value`"));
+            return Err(format!("line {line_no}: expected `key = value`").into());
         };
         let key = key.trim().to_string();
         let value = value.trim();
         let parsed = if value.starts_with('\"') {
             parse_json_string(value)
-                .ok_or_else(|| format!("line {line_no}: malformed string"))?
+                .ok_or_else(|| format!("line {line_no}: malformed string").into())?
                 .0
         } else if value.starts_with('[') {
             if !value.ends_with(']') {
-                return Err(format!("line {line_no}: malformed array"));
+                return Err(format!("line {line_no}: malformed array").into());
             }
             let arr = string_items(value);
             if arr.is_empty() && value != "[]" {
                 return Err(format!(
                     "line {line_no}: array items must be quoted strings"
-                ));
+                ).into());
             }
             arr.join(",")
         } else {
-            return Err(format!("line {line_no}: unsupported value `{value}`"));
+            return Err(format!("line {line_no}: unsupported value `{value}`").into());
         };
         pending.insert(key, parsed);
     }
